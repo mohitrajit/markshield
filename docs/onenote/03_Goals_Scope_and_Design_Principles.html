@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>3. Goals, Scope, and Design Principles</title>
+</head>
+<body>
+<h1>3. Goals, Scope, and Design Principles</h1>
+
+<h2>3.1 System Goals</h2>
+<ul>
+  <li>Provide an automated, standalone pre-ingestion gate for all technical Markdown documents entering the RAG pipeline.</li>
+  <li>Achieve 100% deterministic rule enforcement with zero false passes on syntactic or structural defects.</li>
+  <li>Provide explainable, actionable diagnostics: every issue must report line number, rule code, severity, impact, and fix.</li>
+  <li>Operate autonomously in continuous background daemon mode or ad-hoc single-file/batch CLI modes.</li>
+</ul>
+
+<h2>3.2 Scope and Boundaries</h2>
+<ul>
+  <li><b>In-Scope:</b> Markdown syntax, YAML front matter, heading outline hierarchy, code fence tagging, Mermaid diagram syntax, table formatting, link/image validity, YouTube timestamp arithmetic, security secrets scanning, and file routing.</li>
+  <li><b>Out-of-Scope:</b> Vector database management (e.g. Milvus/Qdrant), embedding computation, and LLM text generation (semantic review is planned for Phase 3/4).</li>
+</ul>
+
+<h2>3.3 Core Design Principles</h2>
+<ul>
+  <li><b>Deterministic over Probabilistic:</b> A table is either structurally valid or invalid. A machine validator must guarantee repeatable, zero-cost, sub-10ms verification without probabilistic hallucinations.</li>
+  <li><b>Dynamic Template Learning:</b> Rather than hardcoding fields, the verifier introspects <code>RAG-SAMPLE-MASTER-TEMPLATE.md</code> dynamically to learn required metadata, types, and section sequences.</li>
+  <li><b>Non-Destructive Routing:</b> Input files are never modified in-place or deleted. Defective files are quarantined in <code>failed/</code> alongside companion diagnostic reports.</li>
+  <li><b>Air-Gapped Security:</b> Executes completely on-premise without transmitting documents across cloud boundaries, protecting enterprise IP.</li>
+</ul>
+
+</body>
+</html>

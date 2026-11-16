@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>7. Problems Faced and Solutions</title>
+</head>
+<body>
+<h1>7. Problems Faced and Solutions</h1>
+
+<h2>Problem-Solution Matrix</h2>
+<p>The following table details all 8 major engineering obstacles encountered during the project, their verified root causes, engineering fixes, and measured outcomes:</p>
+<table border="1" cellpadding="6">
+  <tr style="background-color: #1F4E78; color: #FFFFFF;">
+    <th>#</th><th>Problem Encountered</th><th>Root Cause</th><th>Engineering Solution</th><th>Verified Outcome</th>
+  </tr>
+  <tr>
+    <td><b>1</b></td>
+    <td><b>Microsoft 365 SMTP Auth Disabled (535 5.7.139)</b></td>
+    <td>Radiant Global Tech enterprise tenant policy disabled basic SMTP authentication on smtp.office365.com, returning '535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication disabled for Tenant'.</td>
+    <td>Re-routed notifications through an authorized personal Gmail SMTP relay (mohitrajsingh2601@gmail.com) utilizing Google 16-character App Passwords, delivering directly to mohit.raj@radiantglobaltech.com. Added dual STARTTLS/SSL support in agent.py.</td>
+    <td>100% reliable email delivery with full Excel workbook attachments without requiring tenant-wide policy alterations.</td>
+  </tr><tr>
+    <td><b>2</b></td>
+    <td><b>Windows Console UnicodeEncodeError on Emoji (Clip Icon)</b></td>
+    <td>Windows PowerShell environment running standard legacy code pages (cp1252/cp437) crashed with UnicodeEncodeError when attempting to print the raw paperclip emoji glyph in terminal logs.</td>
+    <td>Replaced raw emoji characters in email HTML templates with standard HTML numeric character entity '&#128206;' and replaced terminal log strings with clean ASCII indicators ([ATTACHMENT], [PASS], [FAIL]).</td>
+    <td>Complete cross-platform stability across all Windows PowerShell, CMD, and Linux shell environments without encoding crashes.</td>
+  </tr><tr>
+    <td><b>3</b></td>
+    <td><b>Email Body Character Limit & Clutter from Raw Inline Dumps</b></td>
+    <td>Initial implementations embedded the full issue table directly into the HTML email message body. Documents with 50+ errors caused email bodies to exceed 100 KB, triggering mobile client truncation, character limits, and severe visual clutter.</td>
+    <td>Decoupled executive notification from forensic details. Streamlined the email HTML body into an executive status card (total files, pass/fail counts, timestamps, attachment callout) and routed all line-by-line issue details exclusively into the attached Excel spreadsheet.</td>
+    <td>Clean, lightweight executive email body (<5 KB) with complete diagnostic forensics accessible in the structured Excel attachment.</td>
+  </tr><tr>
+    <td><b>4</b></td>
+    <td><b>Multi-Document Failure Congestion in Single-Sheet Spreadsheets</b></td>
+    <td>Early Excel report implementation dumped all issues from all batch files into a single flat worksheet ('Issue Details'). Reviewers could not easily distinguish which issues belonged to which document or filter errors by file without complex multi-column filtering.</td>
+    <td>Re-engineered generate_excel_report() using openpyxl to create a dynamic multi-tab workbook: a master 'Summary' tab serving as an index, followed by isolated, dedicated worksheet tabs for each individual document named after the file.</td>
+    <td>Reviewers can navigate directly to specific document tabs with frozen headers, column filters, and wrapped descriptions.</td>
+  </tr><tr>
+    <td><b>5</b></td>
+    <td><b>Excel 31-Character Worksheet Name Limit & Duplicate Stem Collisions</b></td>
+    <td>Real-world enterprise document filenames (e.g. RAIN-09-INT-SQLSERVER-AV-0002.md) exceeded Excel's rigid 31-character sheet title limit; multiple files with long shared prefixes produced identical truncated titles, causing openpyxl to crash with 'Sheet title already exists'.</td>
+    <td>Implemented _safe_sheet_title(name, existing_titles) algorithm to sanitize illegal characters (\ / * ? : [ ]), clamp titles safely to 31 characters, and append collision counters (e.g. ' (2)').</td>
+    <td>100% crash-free multi-tab Excel generation across arbitrary filename lengths and naming patterns.</td>
+  </tr><tr>
+    <td><b>6</b></td>
+    <td><b>Raw Machine Timestamps in Reports and UI (20261104_155642)</b></td>
+    <td>Filesystem timestamp string was passed directly into display columns and email headers.</td>
+    <td>Decoupled stamp_file (strftime('%Y%m%d_%H%M%S')) for filenames from display_time (strftime('%Y-%m-%d %H:%M:%S')) for visible report tables, emails, and spreadsheets.</td>
+    <td>Clean, professional, human-readable ISO-like timestamps across all reports, emails, and spreadsheets.</td>
+  </tr><tr>
+    <td><b>7</b></td>
+    <td><b>Master Template Schema Evolution & Legacy Context Lines</b></td>
+    <td>Upstream master template eliminated legacy context lines ('**Doc ID:** ...'), obsolete H1 header lines, and fields like source_url/version, moving sources to the front-matter 'references' list of records. Existing documents still contained old syntax.</td>
+    <td>Extended verifier.py to parse 'records' schema in front matter, added section_types regex mapping to infer section types from H2 titles, added optional_keys: [ekg_config_version], and introduced legacy cleanup rules E066 (context lines), E067 (H1 header lines), and E068 (legacy sections).</td>
+    <td>Golden master template passes with 0 errors; legacy documents are cleanly flagged for modernization without false alarms.</td>
+  </tr><tr>
+    <td><b>8</b></td>
+    <td><b>Stale Mutation Test Failures Post-Schema Migration</b></td>
+    <td>test_mutations.py looked for deleted template strings (version: '2.1', old context lines), causing AssertionErrors.</td>
+    <td>Completely overhauled test_mutations.py to test the new schema (references missing name, bad url, bad type, legacy keys/lines, new section headings), updating the test suite to 46 mutations.</td>
+    <td>Achieved '46 mutations, 0 problems' (100% pass rate).</td>
+  </tr>
+</table>
+
+</body>
+</html>

@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# The verifier LEARNS from the master template:
+#   - every front-matter key (and its type: text / number / list / list of entries / date)
+#   - every section title and the section order
+# Change the template file and the rules follow. This file only adds the
+# extra strictness (patterns, enums, minimum counts) the template can't express.
+# ---------------------------------------------------------------------------
+template: RAG-SAMPLE-MASTER-TEMPLATE.md
+
+field_overrides:
+  doc_id:        {pattern: '^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*-\d{4}$'}
+  difficulty:    {enum: [Beginner, Intermediate, Advanced]}
+  language:      {pattern: '^[a-z]{2}(-[A-Z]{2})?$'}
+  review_cycle_days: {min: 1}
+  source_file:   {pattern: '^[^/\\\s]+\.md$'}        # this Markdown file's own name, not a URL
+  references:    {min_items: 1,
+                  item_patterns: {url: '^https://\S+$'},
+                  item_enums: {type: [pdf, video, doc, docx, xlsx, pptx, web, image, other]}}
+  roles_required: {allow_empty: true}
+  related_docs:  {allow_empty: true, item_pattern: '^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*-\d{3,4}$'}
+  audience:      {min_items: 1}
+  tags:          {min_items: 3}
+  # status:      {enum: [draft, review, published]}     # uncomment once you fix your status values
+
+# Keys that are allowed in a document but are not in the template (no warning, not required)
+optional_keys: [ekg_config_version]
+
+# Sections every document must contain, by title. "Overview" also matches "Overview: How to ..."
+required_section_titles: [Overview]
+
+# The template no longer has "Section type" lines. A section's type (which decides the
+# extra checks it gets) is now taken from its title. Case-insensitive regular expressions.
+section_types:
+  procedure:       ['step-by-step', 'procedure', 'how do i']
+  troubleshooting: ['troubleshooting']
+  faq:             ['frequently asked questions']
+  diagrams:        ['flowcharts and diagrams']
+
+# Things the OLD template had. A file that still contains them is reported so it can be
+# cleaned up. Set severity to "warning" to let such files pass during the transition.
+legacy:
+  severity: error
+  keys: [document_type, keywords, synonyms, source_url, version]
+  header_labels: [Document ID, Platform, Difficulty, Estimated time, Video duration, Last reviewed]
+  sections:
+    - Source and Video Links
+    - Summary, Key Takeaways, and Questions Answered
+    - Key Takeaways
+    - Questions this document answers
+    - Related Resources
+    - Version History
+
+# Lines each procedure section must carry (**Label:** form)
+procedure_required_labels: [Goal]
+procedure_one_of_labels: [[Expected result, Result]]
+
+callout_labels: [Purpose, Important, Rule, Note, Warning, Tip, Info, Safety note, Main observation,
+                 Supporting detail, Practical implication, Why every diagram needs a text version]
+callout_emoji: {"🟢": [Tip], "🟡": [Warning], "🔴": [Important], "🔵": [Info]}
+
+allowed_html: [span]
+vague_link_text: [click here, here, link, this link, read more]
+min_questions: 3
+
+# Template placeholders that must NOT survive in a real document.
+# Skipped while front-matter status is one of placeholder_ok_status (the master template itself is "sample").
+placeholders: [VIDEO_ID, PLAYLIST_ID, SOURCE_FILE_ID, IMAGE_ID, DOC_ID_, example.com, example.sharepoint.com, Author Name]
+placeholder_ok_status: [sample, template]
+
+limits:
+  max_chunk_chars: 2500      # text under one heading; bigger = chunker splits it mid-thought
+  max_line_chars: 2000
+
+fail_on_warnings: false      # true = warnings also send the file to failed/

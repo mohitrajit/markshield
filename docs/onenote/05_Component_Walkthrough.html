@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>5. Component or Module Walkthrough</title>
+</head>
+<body>
+<h1>5. Component or Module Walkthrough</h1>
+
+<h2>5.1 verifier.py (Core Verification Library)</h2>
+<p><b>What it is:</b> A pure-Python verification library (1,150 lines) implementing the Verifier class and verify_file API.<br>
+<b>Why it was built:</b> To perform high-speed, deterministic syntactic, structural, and security validation on Markdown documents without LLM dependencies.<br>
+<b>How it works:</b> Executes 10 inspection passes (BOM, front matter, headings, fences, tables, links, images, procedures, text hygiene, and legacy checks).<br>
+<b>Inputs & Outputs:</b> Takes document text or file path and configuration dictionary; outputs structured Issue objects (line, code, severity, message, impact, fix).<br>
+<b>Configuration:</b> Governed by learned rules from the master template and rule overrides from rules.yaml.</p>
+
+<h2>5.2 agent.py (Autonomous Daemon & Batch Runner)</h2>
+<p><b>What it is:</b> Autonomous folder watcher and batch pipeline driver (545 lines).<br>
+<b>Why it was built:</b> To eliminate manual verification workflows, manage safe file routing, generate multi-tab Excel reports, and dispatch email alerts.<br>
+<b>How it works:</b> Periodically polls inbox/, enforces settle time buffers, coordinates file and asset moves, synthesizes openpyxl workbooks, and sends emails.<br>
+<b>Inputs & Outputs:</b> Watches inbox/; outputs to verified/, failed/, reports/, and dispatches SMTP emails.<br>
+<b>Configuration:</b> Reads parameters from .env (SMTP settings, POLL_SECONDS, SETTLE_SECONDS, directory paths).</p>
+
+<h2>5.3 rules.yaml (Configuration Overlay)</h2>
+<p><b>What it is:</b> Declarative YAML configuration file (74 lines).<br>
+<b>Why it was built:</b> To define strict field regex patterns, enumerations, allowed HTML tags, and chunk thresholds that cannot be expressed in Markdown.<br>
+<b>How it works:</b> Overlays learned template fields via field_overrides; defines optional_keys, section_types regex mappings, and legacy cleanup lists.<br>
+<b>Inputs & Outputs:</b> Parsed by load_rules() and merged with template schema.</p>
+
+<h2>5.4 RAG-SAMPLE-MASTER-TEMPLATE.md (Golden Contract)</h2>
+<p><b>What it is:</b> Authoritative master Markdown document (983 lines) demonstrating all valid documentation patterns.<br>
+<b>Why it was built:</b> Serves as the single source of truth from which verifier.py learns valid front matter keys, types, and canonical section orders.<br>
+<b>How it works:</b> Parsed at runtime by learn_template(); changes to this file immediately update validation expectations.</p>
+
+<h2>5.5 test_mutations.py (Mutation Test Suite)</h2>
+<p><b>What it is:</b> Regression testing harness (106 lines) executing 46 programmatic template breakages.<br>
+<b>Why it was built:</b> To mathematically verify that every cataloged rule code is triggered when its corresponding defect is introduced.<br>
+<b>How it works:</b> Mutates RAG-SAMPLE-MASTER-TEMPLATE.md in temporary directories and verifies that expected error codes fire on expected lines.</p>
+
+<h2>5.6 .env / .env.example (Secrets Configuration)</h2>
+<p><b>What it is:</b> Local environment files defining SMTP credentials and operational parameters.<br>
+<b>Why it was built:</b> To isolate sensitive credentials from version control while providing zero-dependency environment variable parsing.</p>
+
+</body>
+</html>

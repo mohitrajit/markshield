@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>6. Work Done, Step by Step</title>
+</head>
+<body>
+<h1>6. Work Done, Step by Step</h1>
+
+<h2>Step 1: Ingestion Failure Analysis & Master Contract Design</h2>
+<p>Analyzed production RAG chunking failures across enterprise documents. Created RAG-SAMPLE-MASTER-TEMPLATE.md to model all approved Markdown patterns: YAML front matter, procedures, tables, YouTube timestamps, Mermaid diagrams, troubleshooting triads, and FAQs. Cataloged error codes E001 through E099.</p>
+
+<h2>Step 2: Core Verifier Engine Implementation (verifier.py)</h2>
+<p>Developed verifier.py in pure Python. Implemented dynamic learn_template() using a custom PyYAML SafeLoader to introspect fields, types, and canonical section orders. Built regex scanners for code fences, tables, links, images, secrets, and YouTube timestamp arithmetic. Validated execution latency under 10ms.</p>
+
+<h2>Step 3: Autonomous Watcher Daemon (agent.py)</h2>
+<p>Created agent.py to automate folder monitoring. Implemented a 5-second settlement window (SETTLE_SECONDS) to prevent race conditions during file transfers. Added safe non-destructive routing to verified/ (0 errors) and failed/ (quarantine with &lt;file&gt;.report.txt).</p>
+
+<h2>Step 4: Relative Image Asset Tracking & Rewriting</h2>
+<p>Discovered that moving Markdown files severed relative image links (e.g. images/diagram.png). Implemented _local_images() and _rewrite_image_links() to parse image tags, copy referenced graphics to target folders, and rewrite Markdown links when collisions occur.</p>
+
+<h2>Step 5: Enterprise Email Integration & SMTP Diagnostics</h2>
+<p>Integrated smtplib with RFC-compliant MIME multipart generation. Added load_dotenv() for zero-dependency environment configuration. Added CLI diagnostic flag --test-email to test connectivity and attachment rendering.</p>
+
+<h2>Step 6: Microsoft 365 Tenant SMTP Block & Gmail Relay Migration</h2>
+<p>Identified tenant policy error '535 5.7.139 SmtpClientAuthentication disabled' when attempting to connect to smtp.office365.com. Re-architected delivery to route through an authorized personal Gmail relay (mohitrajsingh2601@gmail.com) with 16-character App Passwords, delivering to mohit.raj@radiantglobaltech.com. Added dual STARTTLS (587) and SSL (465) support.</p>
+
+<h2>Step 7: Multi-Tab Excel Reporting Overhaul</h2>
+<p>Replaced noisy inline email error dumps with an executive HTML dashboard and an attached openpyxl Excel report. Tab 1: Summary index with color-coded status badges and human-readable timestamps. Subsequent tabs: Dedicated per-document sheets with column filters, wrapped descriptions, and issue taxonomy.</p>
+
+<h2>Step 8: Excel 31-Character Sheet Title Sanitization</h2>
+<p>Encountered openpyxl crashes when processing enterprise filenames exceeding 31 characters. Engineered _safe_sheet_title(name, existing_titles) to sanitize illegal characters (\ / * ? : [ ]), clamp lengths to 31 characters, and append collision counters (e.g. ' (2)').</p>
+
+<h2>Step 9: Template Schema Evolution (Legacy Elimination)</h2>
+<p>Upgraded the master template: eliminated legacy context lines ('**Doc ID:** ...'), deprecated H1 header lines, removed obsolete fields (source_url, version), and introduced the 'references' records schema. Extended verifier.py to parse records, map section_types by title regex, permit optional_keys (ekg_config_version), and flag legacy syntax via E066, E067, and E068.</p>
+
+<h2>Step 10: Mutation Testing Suite Modernization</h2>
+<p>Overhauled test_mutations.py to test the new schema. Replaced obsolete mutations with tests for references missing names, bad URLs, invalid types, legacy keys, and new section headings. Restored the suite to 46 passing mutations with 0 problems.</p>
+
+</body>
+</html>

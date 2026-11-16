@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>4. Architecture Overview with Diagram</title>
+</head>
+<body>
+<h1>4. Architecture Overview with Diagram</h1>
+
+<h2>4.1 Pipeline Architecture Flow Diagram</h2>
+<p>The diagram below illustrates the end-to-end processing pipeline from intake to routing and notification:</p>
+<pre>
++-------------------------------------------------------------------------+
+|                             INBOX DIRECTORY                             |
+|          (Incoming .md files and local referenced images/diagrams)      |
++------------------------------------+------------------------------------+
+                                     |
+                                     v
++------------------------------------+------------------------------------+
+|                    AUTONOMOUS DAEMON (agent.py)                         |
+|  1. Settle Buffer Check (Wait 5s post-write to prevent race conditions) |
+|  2. Dynamic Template Learning & Rules Ingestion (rules.yaml)            |
++------------------------------------+------------------------------------+
+                                     |
+                                     v
++------------------------------------+------------------------------------+
+|                  VERIFIER CORE ENGINE (verifier.py)                     |
+|  - 10-Pass Structural, Syntactic & Security Inspection                 |
+|  - Front-matter schema, heading trees, tables, code, links, YouTube     |
++------------------------------------+------------------------------------+
+                                     |
+                  +------------------+------------------+
+                  |                                     |
+         [ALL CHECKS PASSED]                   [ERRORS DETECTED]
+                  |                                     |
+                  v                                     v
++-----------------+---------------+   +-----------------+-----------------+
+|        VERIFIED/ STORAGE        |   |         FAILED/ STORAGE         |
+|  - Markdown file moved          |   |  - Markdown file quarantined      |
+|  - Local image assets copied    |   |  - Local assets copied            |
+|  - Ready for RAGFlow Ingestion  |   |  - Standalone .report.txt emitted |
++-----------------+---------------+   +-----------------+-----------------+
+                  |                                     |
+                  +------------------+------------------+
+                                     |
+                                     v
++------------------------------------+------------------------------------+
+|                       REPORTING & NOTIFICATION                          |
+|  - OpenPyXL Multi-Tab Excel (.xlsx): Master Summary + Document Tabs     |
+|  - Clean HTML Executive Dashboard (No messy inline error dumps)          |
+|  - SMTP Enterprise Email Dispatch (Gmail Relay, STARTTLS/SSL, CC/BCC)   |
++-------------------------------------------------------------------------+
+</pre>
+<p><i>Diagram Method Note: The diagram above was authored directly as a formatted monospace text flow diagram embedded within a pre code block. An external Mermaid CLI renderer (mmdc) was not installed in this execution environment; this plain-text representation guarantees full portability without external rendering dependencies.</i></p>
+
+<h2>4.2 Pipeline Processing Stages</h2>
+<ol>
+  <li><b>Intake Staging:</b> Incoming Markdown files and referenced image assets are dropped into <code>inbox/</code>.</li>
+  <li><b>Settlement Buffer:</b> The daemon checks file modification times against SETTLE_SECONDS (default 5s). Files currently being written or copied over network shares are skipped until the transfer finishes.</li>
+  <li><b>Rule Compilation:</b> <code>rules.yaml</code> is loaded and <code>RAG-SAMPLE-MASTER-TEMPLATE.md</code> is introspected to construct dynamic schema definitions.</li>
+  <li><b>Verifier Engine:</b> <code>verifier.py</code> executes 10 sequential inspection passes against the document text.</li>
+  <li><b>File Routing:</b> If 0 errors are found, the document and its local images are moved to <code>verified/</code>. If errors are detected, the document is moved to <code>failed/</code> and a <code>&lt;stem&gt;.report.txt</code> is emitted.</li>
+  <li><b>Reporting & Notification:</b> openpyxl synthesizes a multi-tab workbook with Summary and per-document tabs; <code>render_html()</code> builds an executive status card; <code>send_email()</code> dispatches the report via Gmail relay.</li>
+</ol>
+
+</body>
+</html>

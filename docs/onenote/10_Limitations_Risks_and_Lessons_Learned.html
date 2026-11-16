@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>10. Limitations, Risks, and Lessons Learned</title>
+</head>
+<body>
+<h1>10. Limitations, Risks, and Lessons Learned</h1>
+
+<h2>10.1 Limitations</h2>
+<ul>
+  <li><b>Syntactic, Not Semantic:</b> The verifier enforces structure, syntax, and presence of sections, but does not verify if instructional prose is factually accurate.</li>
+  <li><b>Filesystem Bound:</b> Requires local filesystem access to watch directories; currently lacks direct cloud object store (S3/Azure Blob) polling.</li>
+</ul>
+
+<h2>10.2 Operational Risks</h2>
+<ul>
+  <li><b>Schema Divergence:</b> Uncoordinated master template edits can immediately cause all incoming documents to fail validation.</li>
+  <li><b>Author Frustration:</b> Author friction if error diagnostics are misunderstood (mitigated by providing actionable fixes on every error).</li>
+</ul>
+
+<h2>10.3 Lessons Learned</h2>
+<ul>
+  <li><b>Deterministic Primacy:</b> Never rely on LLMs for deterministic syntax checking. Deterministic Python regex evaluation is 1000x faster, zero-cost, and 100% reproducible.</li>
+  <li><b>Presentation Decoupling:</b> Decouple presentation timestamps from machine filenames early to maintain clean UI reporting.</li>
+  <li><b>Flexible Mail Relays:</b> Enterprise SMTP authentication policies frequently block direct server-to-server mail; maintaining flexible relay support is essential.</li>
+</ul>
+
+</body>
+</html>

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>11. Proposed Plan, Future Work, and Roadmap</title>
+</head>
+<body>
+<h1>11. Proposed Plan, Future Work, and Roadmap</h1>
+
+<h2>11.1 Phase 2: Ingestion Pipeline Hook (RAGFlow Direct API)</h2>
+<p>Automate direct dispatch of verified documents from verified/ into RAGFlow document datasets via REST API upon successful verification, completing the automated ingestion lifecycle.</p>
+
+<h2>11.2 Phase 3: Autonomous AI Auto-Fixer Agent</h2>
+<p>Over 70% of document failures stem from mechanical flaws (missing blank lines around headings, tabs instead of spaces, missing language tags). We propose an automated pre-quarantine fixer that sanitizes whitespace, injects blank padding, infers code languages, and re-verifies automatically.</p>
+
+<h2>11.3 Phase 4: Semantic LLM Quality Reviewer</h2>
+<p>An optional, gated LLM review step executed only after deterministic checks pass to evaluate whether the title matches content, procedures have meaningful expected results, and evaluation questions are answerable from the document.</p>
+
+<h2>11.4 Phase 5: Centralized Telemetry & Dashboard</h2>
+<p>Build a lightweight web dashboard displaying batch verification trends, top rule failure distributions, and pipeline throughput.</p>
+
+</body>
+</html>

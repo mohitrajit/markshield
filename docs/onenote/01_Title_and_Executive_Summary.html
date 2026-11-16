@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>1. Title Page and Executive Summary</title>
+</head>
+<body>
+<h1>1. Title Page and Executive Summary</h1>
+
+<h2>1.1 Problem Statement</h2>
+<p>In enterprise Retrieval-Augmented Generation (RAG) platforms (such as RAGFlow, LangChain, or LlamaIndex), Markdown documents are parsed and chunked to create vector embeddings and hybrid search indexes. Formatting flaws—including unclosed code fences, malformed table rows, missing YAML front-matter, and broken YouTube timestamp links—routinely cause chunkers to flatten tables, drop metadata, or fail to deep-link visual procedures. These errors degrade vector retrieval precision and cause silent model hallucinations.</p>
+
+<h2>1.2 Solution Overview</h2>
+<p>Md_Validator is a deterministic, pure-Python quality firewall that operates prior to vector indexing. It monitors an intake staging folder (<code>inbox/</code>), inspects incoming Markdown files across 10 comprehensive structural and semantic passes, preserves relative visual assets, and safely routes files into <code>verified/</code> (0 errors) or <code>failed/</code> (quarantine with diagnostic logs). It generates multi-tab Excel workbooks via openpyxl and delivers executive HTML reports via enterprise SMTP (Gmail relay with STARTTLS/SSL).</p>
+
+<h2>1.3 Key Outcomes</h2>
+<ul>
+  <li><b>Deterministic Reliability:</b> 100% deterministic rule enforcement with sub-10ms evaluation latency per document and zero external API costs.</li>
+  <li><b>Mutation Verification:</b> A 46-mutation regression test suite (<code>test_mutations.py</code>) verifying 46 deliberate rule violations with a 100% pass rate.</li>
+  <li><b>Clean Forensic Reporting:</b> Replaced noisy inline email error tables with an executive status card and an attached Excel workbook featuring an index Summary tab and dedicated per-document tabs.</li>
+  <li><b>Asset Synchronization:</b> Relative local image links are tracked, copied, and rewritten during routing, preventing broken graphics post-verification.</li>
+</ul>
+
+</body>
+</html>

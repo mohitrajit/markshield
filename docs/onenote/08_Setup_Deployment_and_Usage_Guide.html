@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>8. Setup, Deployment, and Usage Guide</title>
+</head>
+<body>
+<h1>8. Setup, Deployment, and Usage Guide</h1>
+
+<h2>8.1 Prerequisites</h2>
+<p>Python 3.10 or higher (tested on Python 3.13 64-bit Windows). Dependencies: PyYAML>=6.0, openpyxl>=3.0.0.</p>
+
+<h2>8.2 Installation</h2>
+<pre>
+cd c:\RAG\md_validator
+python -m pip install -r requirements.txt
+</pre>
+<p><b>Verification:</b> Run <code>python -c "import yaml, openpyxl; print('OK')"</code>. Output must be 'OK'.</p>
+
+<h2>8.3 Environment Configuration (.env)</h2>
+<pre>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURITY=starttls
+SMTP_USER=mohitrajsingh2601@gmail.com
+SMTP_PASS=&lt;GOOGLE_16_CHAR_APP_PASSWORD&gt;
+MAIL_FROM=mohitrajsingh2601@gmail.com
+MAIL_TO=mohit.raj@radiantglobaltech.com
+MAIL_CC=engineering-leads@radiantglobaltech.com
+POLL_SECONDS=30
+SETTLE_SECONDS=5
+INBOX=inbox
+VERIFIED=verified
+FAILED=failed
+REPORTS=reports
+</pre>
+
+<h2>8.4 Execution Commands</h2>
+<pre>
+# 1. Validate a single document
+python verifier.py path/to/document.md
+
+# 2. Validate with JSON output
+python verifier.py path/to/document.md --json
+
+# 3. Process all settled inbox files once and exit
+python agent.py --once --settle 0
+
+# 4. Start 24/7 background folder watcher
+python agent.py
+
+# 5. Diagnostic SMTP test email with Excel attachment
+python agent.py --test-email
+
+# 6. Execute mutation regression test suite
+python test_mutations.py
+</pre>
+
+</body>
+</html>

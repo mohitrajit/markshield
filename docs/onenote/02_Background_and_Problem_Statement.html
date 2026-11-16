@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>2. Background and Problem Statement</title>
+</head>
+<body>
+<h1>2. Background and Problem Statement</h1>
+
+<h2>2.1 The RAG Data Ingestion Dilemma</h2>
+<p>Modern RAG architectures rely on text extractors to split documentation into chunks of 500 to 1,500 tokens before computing dense vector embeddings. If the source Markdown document contains formatting irregularities, the parser fails to understand document hierarchy, leading to:</p>
+<ul>
+  <li><b>Table Flattening:</b> Tables without closing pipes or blank padding are flattened into unseparated text lines, destroying row-column relationships and rendering tabular data unsearchable.</li>
+  <li><b>Metadata Invisibility:</b> Omission of YAML front matter or syntax errors prevents metadata extraction, causing documents to lose platform, module, difficulty, and access-control tags in vector databases.</li>
+  <li><b>Timestamp Misdirection:</b> Malformed YouTube links (e.g. missing &t=...s seconds parameter or arithmetic discrepancies between shown MM:SS and target seconds) prevent deep-linking to video procedures.</li>
+  <li><b>Context Fragmentation:</b> Paragraphs exceeding 2,500 characters force chunkers to split thoughts mid-sentence, corrupting semantic embedding vectors and degrading cosine similarity matching.</li>
+  <li><b>Security Leaks:</b> Accidental hardcoding of passwords, API keys, or bearer tokens in code examples causes security credentials to be permanently indexed into public RAG vector databases.</li>
+</ul>
+
+<h2>2.2 Business Cost of Ingestion Defects</h2>
+<p>In customer-facing or internal support RAG systems, ingestion defects lead directly to hallucinations, user distrust, and expensive engineering triage. Remediating corrupted chunks after vector indexing requires flushing the index, modifying source Markdown, and re-computing embeddings across thousands of documents. Md_Validator eliminates this overhead by enforcing quality at the intake boundary.</p>
+
+</body>
+</html>

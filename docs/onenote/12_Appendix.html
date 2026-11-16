@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>12. Appendix</title>
+</head>
+<body>
+<h1>12. Appendix</h1>
+
+<h2>12.1 Configuration Reference</h2>
+<table border="1" cellpadding="6">
+  <tr style="background-color: #1F4E78; color: #FFFFFF;">
+    <th>File / Setting</th><th>Purpose</th><th>Default Value</th><th>Description</th>
+  </tr>
+  <tr><td>rules.yaml: template</td><td>Pointer to golden contract</td><td>RAG-SAMPLE-MASTER-TEMPLATE.md</td><td>Relative path to master template.</td></tr>
+  <tr><td>rules.yaml: field_overrides</td><td>Schema regex/enum rules</td><td>doc_id, difficulty, etc.</td><td>Overrides learned template field constraints.</td></tr>
+  <tr><td>rules.yaml: optional_keys</td><td>Allowed unlisted keys</td><td>[ekg_config_version]</td><td>Suppresses unknown-key warnings.</td></tr>
+  <tr><td>rules.yaml: section_types</td><td>Title-to-type regex map</td><td>procedure, troubleshooting, etc.</td><td>Infers section roles from H2 titles.</td></tr>
+  <tr><td>rules.yaml: legacy</td><td>Deprecated feature rules</td><td>keys, headers, sections</td><td>Flags obsolete syntax with configurable severity.</td></tr>
+  <tr><td>.env: SMTP_HOST</td><td>Mail server hostname</td><td>smtp.gmail.com</td><td>SMTP relay host.</td></tr>
+  <tr><td>.env: SMTP_PORT</td><td>Mail server port</td><td>587</td><td>Port (587 for STARTTLS, 465 for SSL).</td></tr>
+  <tr><td>.env: SMTP_SECURITY</td><td>TLS encryption mode</td><td>starttls</td><td>Security protocol (starttls, ssl, none).</td></tr>
+  <tr><td>.env: POLL_SECONDS</td><td>Daemon polling cycle</td><td>30</td><td>Seconds between inbox/ scans.</td></tr>
+  <tr><td>.env: SETTLE_SECONDS</td><td>Write buffer delay</td><td>5</td><td>Seconds file must be untouched before processing.</td></tr>
+</table>
+
+<h2>12.2 Master Error Catalog Summary (E001 - E099)</h2>
+<table border="1" cellpadding="6">
+  <tr style="background-color: #1F4E78; color: #FFFFFF;">
+    <th>Code</th><th>Category</th><th>Description</th><th>Actionable Fix</th>
+  </tr>
+  <tr>
+    <td><b>E001</b></td>
+    <td>Encoding</td>
+    <td>UTF-8 BOM detected; front-matter parser fails completely.</td>
+    <td>Save as standard UTF-8 without BOM.</td>
+  </tr><tr>
+    <td><b>E002</b></td>
+    <td>I/O</td>
+    <td>File read or routing failure; document cannot be inspected or moved.</td>
+    <td>Fix filesystem permissions and write access.</td>
+  </tr><tr>
+    <td><b>E010</b></td>
+    <td>Metadata</td>
+    <td>Malformed YAML front-matter; document invisible to index.</td>
+    <td>Enclose valid YAML between '---' on line 1 and closing '---'.</td>
+  </tr><tr>
+    <td><b>E011</b></td>
+    <td>Metadata</td>
+    <td>Required metadata key missing; citation and filters fail.</td>
+    <td>Add missing key with valid value per master template.</td>
+  </tr><tr>
+    <td><b>E012</b></td>
+    <td>Metadata</td>
+    <td>Value type mismatch; integer/date parsed as string or vice versa.</td>
+    <td>Use proper type shown in template (quote strings, unquote numbers).</td>
+  </tr><tr>
+    <td><b>E013</b></td>
+    <td>Metadata</td>
+    <td>Value pattern violation; date format or enum invalid.</td>
+    <td>Correct value format to match schema regex or allowed enum.</td>
+  </tr><tr>
+    <td><b>E014</b></td>
+    <td>Metadata</td>
+    <td>Deprecated or unknown key; pollutes index.</td>
+    <td>Remove deprecated key or add to optional_keys in rules.yaml.</td>
+  </tr><tr>
+    <td><b>E015</b></td>
+    <td>Metadata</td>
+    <td>Duplicate metadata key; YAML keeps only last entry.</td>
+    <td>Retain exactly one unique entry per metadata key.</td>
+  </tr><tr>
+    <td><b>E016</b></td>
+    <td>Metadata</td>
+    <td>Front-matter title does not match # H1 heading.</td>
+    <td>Ensure front-matter title matches the # H1 title exactly.</td>
+  </tr><tr>
+    <td><b>E017</b></td>
+    <td>Content</td>
+    <td>Template placeholder (VIDEO_ID, SOURCE_FILE_ID) remaining in text.</td>
+    <td>Replace placeholder values with real production data.</td>
+  </tr><tr>
+    <td><b>E018</b></td>
+    <td>Content</td>
+    <td>Document review overdue; technical data may be stale.</td>
+    <td>Review technical content and update last_reviewed date.</td>
+  </tr><tr>
+    <td><b>E019</b></td>
+    <td>Content</td>
+    <td>Version in metadata disagrees with Version History table.</td>
+    <td>Update front-matter version to match the latest table entry.</td>
+  </tr><tr>
+    <td><b>E020</b></td>
+    <td>Structure</td>
+    <td>Mandatory section (e.g. Overview) is missing.</td>
+    <td>Add mandatory section matching master template.</td>
+  </tr><tr>
+    <td><b>E021</b></td>
+    <td>Structure</td>
+    <td>Heading level skipped (e.g. H1 to H3); outline tree broken.</td>
+    <td>Do not skip heading levels in hierarchy.</td>
+  </tr><tr>
+    <td><b>E022</b></td>
+    <td>Structure</td>
+    <td>Missing or misplaced H1; document context lost.</td>
+    <td>Place exactly one # Title immediately after front matter.</td>
+  </tr><tr>
+    <td><b>E023</b></td>
+    <td>Structure</td>
+    <td>Multiple H1 headings found; chunk hierarchy corrupted.</td>
+    <td>Retain one # H1 for the document; demote other headings to ##.</td>
+  </tr><tr>
+    <td><b>E024</b></td>
+    <td>Structure</td>
+    <td>Empty or duplicate heading text; ambiguous anchors.</td>
+    <td>Ensure every heading has unique, non-empty text.</td>
+  </tr><tr>
+    <td><b>E025</b></td>
+    <td>Structure</td>
+    <td>H2 numbering sequence error; cross-references break.</td>
+    <td>Use '## N. Title' with integers strictly incrementing by 1.</td>
+  </tr><tr>
+    <td><b>E026</b></td>
+    <td>Structure</td>
+    <td>Subheading numbering error (2.1 under 2; 11.1.1 under 11.1).</td>
+    <td>Align subheadings with parent section number.</td>
+  </tr><tr>
+    <td><b>E027</b></td>
+    <td>Structure</td>
+    <td>Sections out of canonical order compared to master template.</td>
+    <td>Reorder sections to conform with the master template.</td>
+  </tr><tr>
+    <td><b>E030</b></td>
+    <td>Code</td>
+    <td>Unclosed code fence; subsequent prose ingested as raw code.</td>
+    <td>Add closing backticks (```) on a dedicated line.</td>
+  </tr><tr>
+    <td><b>E031</b></td>
+    <td>Code</td>
+    <td>Missing language tag on code fence; syntax typing fails.</td>
+    <td>Add language tag immediately after opening fence (e.g. ```sql).</td>
+  </tr><tr>
+    <td><b>E032</b></td>
+    <td>Code</td>
+    <td>Empty code block; useless chunk created in vector index.</td>
+    <td>Populate code block with example or remove it.</td>
+  </tr><tr>
+    <td><b>E033</b></td>
+    <td>Code</td>
+    <td>Missing blank line padding around code fence.</td>
+    <td>Insert a blank line before opening and after closing fence.</td>
+  </tr><tr>
+    <td><b>E040</b></td>
+    <td>Table</td>
+    <td>Malformed table separator row; rows flattened into noisy text.</td>
+    <td>Provide header row followed by |---|---| separator row.</td>
+  </tr><tr>
+    <td><b>E041</b></td>
+    <td>Table</td>
+    <td>Table column count mismatch; cell values land under wrong header.</td>
+    <td>Ensure every table row contains the exact same column count.</td>
+  </tr><tr>
+    <td><b>E042</b></td>
+    <td>Table</td>
+    <td>Table lacks blank line padding; merged into prose.</td>
+    <td>Add an empty blank line before and after the table.</td>
+  </tr><tr>
+    <td><b>E043</b></td>
+    <td>Table</td>
+    <td>Table has no data rows; empty structure.</td>
+    <td>Add data rows or remove the table.</td>
+  </tr><tr>
+    <td><b>E050</b></td>
+    <td>Assets</td>
+    <td>Local referenced image file missing from directory.</td>
+    <td>Place image file in directory or correct the relative path.</td>
+  </tr><tr>
+    <td><b>E051</b></td>
+    <td>Assets</td>
+    <td>Inline base64 image data bloats chunk size and ruins embeddings.</td>
+    <td>Save image to filesystem and reference via markdown link.</td>
+  </tr><tr>
+    <td><b>E052</b></td>
+    <td>Assets</td>
+    <td>Missing or trivial alt text; image invisible to retrieval.</td>
+    <td>Write descriptive alt text explaining what image illustrates.</td>
+  </tr><tr>
+    <td><b>E053</b></td>
+    <td>Links</td>
+    <td>Empty link or image URL; creates broken citations.</td>
+    <td>Provide valid URL target inside parentheses [text](url).</td>
+  </tr><tr>
+    <td><b>E054</b></td>
+    <td>Links</td>
+    <td>URL contains unencoded spaces; link truncated.</td>
+    <td>Replace spaces with URL-encoded '%20'.</td>
+  </tr><tr>
+    <td><b>E055</b></td>
+    <td>Links</td>
+    <td>Vague link text ('click here'); target unindexed.</td>
+    <td>Use meaningful, descriptive anchor text describing target.</td>
+  </tr><tr>
+    <td><b>E056</b></td>
+    <td>Links</td>
+    <td>Orphaned footnote or reference definition.</td>
+    <td>Add matching definition or remove reference call.</td>
+  </tr><tr>
+    <td><b>E057</b></td>
+    <td>Links</td>
+    <td>Broken internal anchor (#target) matches no heading.</td>
+    <td>Update anchor tag to match valid heading slug.</td>
+  </tr><tr>
+    <td><b>E058</b></td>
+    <td>Links</td>
+    <td>Reference to non-existent section number in text.</td>
+    <td>Update section reference number to point to existing section.</td>
+  </tr><tr>
+    <td><b>E060</b></td>
+    <td>Source</td>
+    <td>Source document link differs from front-matter source_file.</td>
+    <td>Ensure source document link matches front-matter source_file.</td>
+  </tr><tr>
+    <td><b>E066</b></td>
+    <td>Legacy</td>
+    <td>Deprecated context line ('**Doc ID:** ...') found under ##.</td>
+    <td>Delete legacy context lines; master template no longer has them.</td>
+  </tr><tr>
+    <td><b>E067</b></td>
+    <td>Legacy</td>
+    <td>Deprecated H1 header lines duplicate front matter.</td>
+    <td>Delete Document ID / Platform lines under H1.</td>
+  </tr><tr>
+    <td><b>E068</b></td>
+    <td>Legacy</td>
+    <td>Deprecated legacy section found (e.g. Version History).</td>
+    <td>Delete deprecated section; sources now live in references.</td>
+  </tr><tr>
+    <td><b>E070</b></td>
+    <td>Quality</td>
+    <td>Oversized chunk (>2500 chars); chunker splits mid-thought.</td>
+    <td>Break large section into sub-topics using ### subheadings.</td>
+  </tr><tr>
+    <td><b>E071</b></td>
+    <td>Quality</td>
+    <td>Oversized single line (>2000 chars); tokenization penalty.</td>
+    <td>Break line into structured paragraphs or Markdown table.</td>
+  </tr><tr>
+    <td><b>E072</b></td>
+    <td>Quality</td>
+    <td>Disallowed raw HTML or control characters leak into chunks.</td>
+    <td>Replace with standard Markdown; remove control characters.</td>
+  </tr><tr>
+    <td><b>E073</b></td>
+    <td>Quality</td>
+    <td>Escaped Markdown backslashes (\*\*) render in AI output.</td>
+    <td>Remove backslashes outside of code blocks.</td>
+  </tr><tr>
+    <td><b>E074</b></td>
+    <td>Security</td>
+    <td>Hardcoded password, API key, or bearer token detected.</td>
+    <td>Remove secret immediately; use <placeholder> and rotate key.</td>
+  </tr><tr>
+    <td><b>E075</b></td>
+    <td>Quality</td>
+    <td>Missing blank line padding around heading.</td>
+    <td>Insert blank line immediately before and after heading.</td>
+  </tr><tr>
+    <td><b>E076</b></td>
+    <td>Quality</td>
+    <td>Tab characters used for indentation; rendering breaks.</td>
+    <td>Replace tabs with spaces; use '- ' for unordered lists.</td>
+  </tr><tr>
+    <td><b>E077</b></td>
+    <td>Quality</td>
+    <td>Missing final newline at end of file.</td>
+    <td>Add a single blank newline at the very end of the file.</td>
+  </tr><tr>
+    <td><b>E080</b></td>
+    <td>Procedure</td>
+    <td>Procedure lacks required Goal or Expected Result label.</td>
+    <td>Include '**Goal:**' and '**Expected result:**' labels in procedure.</td>
+  </tr><tr>
+    <td><b>E081</b></td>
+    <td>Procedure</td>
+    <td>Step heading format or numbering sequence wrong.</td>
+    <td>Use '### Step N - Title' with integer counting 1, 2, 3...</td>
+  </tr><tr>
+    <td><b>E082</b></td>
+    <td>Video</td>
+    <td>Malformed video timestamp line; deep-linking fails.</td>
+    <td>Format as **Video:** [MM:SS - Text](url&t=Ss).</td>
+  </tr><tr>
+    <td><b>E083</b></td>
+    <td>Video</td>
+    <td>Shown MM:SS does not match &t=SECONDSs parameter.</td>
+    <td>Ensure seconds parameter t= matches MM:SS (3 min = 180s).</td>
+  </tr><tr>
+    <td><b>E084</b></td>
+    <td>Video</td>
+    <td>Timestamp exceeds stated total video duration.</td>
+    <td>Correct timestamp or verify stated total video duration.</td>
+  </tr><tr>
+    <td><b>E085</b></td>
+    <td>Video</td>
+    <td>Video ID in step differs from source_url video ID.</td>
+    <td>Use the consistent video ID declared for the document.</td>
+  </tr><tr>
+    <td><b>E086</b></td>
+    <td>Video</td>
+    <td>Procedure step lacks required video deep-link.</td>
+    <td>Add **Video:** line to step or clarify step is unrecorded.</td>
+  </tr><tr>
+    <td><b>E090</b></td>
+    <td>Content</td>
+    <td>Troubleshooting entry incomplete; lacks Symptom, Cause, Fix.</td>
+    <td>Structure entry with - **Symptom:**, - **Cause:**, and - **Fix:**.</td>
+  </tr><tr>
+    <td><b>E091</b></td>
+    <td>Content</td>
+    <td>Malformed FAQ entry; Q&A pairs get split.</td>
+    <td>Format entry as '### Q: Question?' followed by '**A:** Answer'.</td>
+  </tr><tr>
+    <td><b>E092</b></td>
+    <td>Content</td>
+    <td>Question list weak; fewer than min_questions.</td>
+    <td>List at least min_questions ending in '?' in test section.</td>
+  </tr><tr>
+    <td><b>E093</b></td>
+    <td>Diagram</td>
+    <td>Invalid Mermaid diagram syntax (type, direction, brackets).</td>
+    <td>Fix diagram type (flowchart TD), direction, or bracket pairs.</td>
+  </tr><tr>
+    <td><b>E094</b></td>
+    <td>Diagram</td>
+    <td>Diagram or image lacks required text description below it.</td>
+    <td>Add '**Text description:**' immediately beneath diagram/image.</td>
+  </tr><tr>
+    <td><b>E095</b></td>
+    <td>Callout</td>
+    <td>Callout lacks bold text label or emoji/label clash.</td>
+    <td>Start callout with bold label (e.g. > **Warning:**, > 🟢 **Tip:**).</td>
+  </tr><tr>
+    <td><b>E096</b></td>
+    <td>Content</td>
+    <td>Related documents list inconsistent with front matter.</td>
+    <td>Ensure all related_docs are listed as - [ID: Title](url).</td>
+  </tr><tr>
+    <td><b>E097</b></td>
+    <td>History</td>
+    <td>Version History table malformed or non-ascending.</td>
+    <td>Columns: Version | Date | Author | Change Summary (ascending).</td>
+  </tr><tr>
+    <td><b>E098</b></td>
+    <td>Video</td>
+    <td>Video chapter index table inconsistent (Time != Seconds != t=).</td>
+    <td>Verify that Time MM:SS matches Seconds column and link t=.</td>
+  </tr><tr>
+    <td><b>E099</b></td>
+    <td>Engine</td>
+    <td>Unhandled verifier parser exception.</td>
+    <td>Inspect traceback, correct document syntax, and rerun.</td>
+  </tr>
+</table>
+
+<h2>12.3 Glossary of Technical Terms</h2>
+<table border="1" cellpadding="6">
+  <tr style="background-color: #1F4E78; color: #FFFFFF;">
+    <th>Term</th><th>Definition in Context of Md_Validator</th>
+  </tr>
+  <tr><td><b>RAG</b></td><td>Retrieval-Augmented Generation: An AI architecture that retrieves external knowledge passages to augment LLM answers.</td></tr>
+  <tr><td><b>Chunking</b></td><td>The process of splitting a long Markdown document into smaller semantic passages for embedding computation.</td></tr>
+  <tr><td><b>BOM</b></td><td>Byte Order Mark: A hidden Unicode signature (\ufeff) at file start that corrupts many automated YAML parsers.</td></tr>
+  <tr><td><b>STARTTLS</b></td><td>An email protocol command that upgrades an insecure plain-text connection to encrypted TLS over port 587.</td></tr>
+  <tr><td><b>Mutation Testing</b></td><td>A quality assurance methodology that deliberately injects defects into a codebase/template to verify test sensitivity.</td></tr>
+  <tr><td><b>Settlement Window</b></td><td>A time delay (default 5s) requiring an incoming file's modification time to remain unchanged before processing begins.</td></tr>
+</table>
+
+<h2>12.4 File and Folder Map</h2>
+<pre>
+c:\RAG\md_validator\
+|-- docs/
+|   |-- Md_Validator_Documentation.docx    # Complete Word technical documentation record
+|   |-- OPEN_QUESTIONS.md                  # Open items, [VERIFY], and [ADD METRIC] register
+|   |-- generate_all.py                    # Master documentation generator script
+|   `-- onenote/                           # OneNote-ready chapter exports
+|       |-- 01_Title_and_Executive_Summary.html
+|       |-- ...
+|       |-- 12_Appendix.html
+|       `-- HOW_TO_IMPORT.md
+|-- inbox/                                 # Incoming staging directory for .md and image files
+|-- verified/                              # Output folder for documents passing with 0 errors
+|-- failed/                                # Quarantine folder for failed files + .report.txt
+|-- reports/                               # Historical JSON, HTML, and multi-tab .xlsx reports
+|-- .env                                   # Local SMTP credentials and operational parameters
+|-- .env.example                           # Documented template for environment setup
+|-- .gitignore                             # Protects .env from version control leaks
+|-- agent.py                               # Autonomous folder watcher daemon and report runner
+|-- verifier.py                            # Deterministic 10-pass Markdown verification library
+|-- rules.yaml                             # YAML rules overlay and field constraints
+|-- RAG-SAMPLE-MASTER-TEMPLATE.md          # Authoritative golden master template
+|-- test_mutations.py                      # 46-mutation regression test suite
+|-- requirements.txt                       # Python dependencies (PyYAML, openpyxl)
+`-- README.md                              # Authoritative project summary and update guide
+</pre>
+
+</body>
+</html>

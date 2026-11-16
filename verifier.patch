@@ -1,0 +1,185 @@
+--- verifier.orig.py	2026-11-11 15:24:39.574756066 +0000
++++ verifier.py	2026-11-11 15:24:39.617148313 +0000
+@@ -60,6 +60,9 @@
+     "E063": ("Context line malformed; parsers cannot read ID/type/source.", "Use: **Doc ID:** X | **Section type:** T | **Source:** [name](url)"),
+     "E064": ("Context Doc ID differs from the document ID; chunk attributed to the wrong doc.", "Use the front-matter doc_id."),
+     "E065": ("Header block missing/different from front matter.", "Add the labelled lines under the H1, matching the front matter."),
++    "E066": ("Old context lines repeat the Doc ID and source in every chunk; the master template no longer has them.", "Delete every '**Doc ID:** ... | **Section type:** ... | **Source:** ...' line."),
++    "E067": ("Old header lines under the H1 duplicate the front matter; the master template no longer has them.", "Delete the Document ID / Platform / Difficulty / Estimated time / Video duration / Last reviewed lines."),
++    "E068": ("Old section duplicates metadata; the master template no longer has it.", "Delete the section (sources now live in 'references' in the front matter)."),
+     "E070": ("Text under one heading is too big; the chunker splits it mid-thought.", "Split it with sub-headings."),
+     "E071": ("Very long line; chunk quality drops.", "Break it into paragraphs or a table."),
+     "E072": ("Raw HTML/control characters leak into chunk text.", "Replace with plain Markdown."),
+@@ -248,7 +251,9 @@
+         raise ValueError(f"Template front matter problem: {err}")
+     fields = {}
+     for k, v in meta.items():
+-        if isinstance(v, list):
++        if isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
++            t = "records"
++        elif isinstance(v, list):
+             t = "list"
+         elif isinstance(v, int) and not isinstance(v, bool):
+             t = "int"
+@@ -257,6 +262,8 @@
+         else:
+             t = "str"
+         fields[k] = {"type": t, "required": True}
++        if t == "records":
++            fields[k]["item_keys"] = list(v[0].keys())
+     code, _ = scan_fences(lines, end + 1)
+     canon, exempt, types = [], set(), set()
+     for i, ln in enumerate(lines):
+@@ -340,6 +347,7 @@
+         self.collect_headings()
+         self.tables()
+         self.sections()
++        self.legacy_checks()
+         # Fence validation needs section metadata so diagram blocks written as
+         # text/ascii can be checked for their required text description.
+         self.fence_checks()
+@@ -362,8 +370,15 @@
+         for d in dups:
+             self.err(kl.get(d, 1) - 1, "E015", f"Key '{d}' appears more than once.")
+         fields = self.cfg["fields"]
++        legacy = self.cfg.get("legacy") or {}
++        optional = set(self.cfg.get("optional_keys") or [])
+         for key in self.meta:
+-            if key not in fields:
++            if key in fields or key in optional:
++                continue
++            if key in (legacy.get("keys") or []):
++                self.add(kl.get(key, 1) - 1, "E014", legacy.get("severity", "error"),
++                         f"Key '{key}' was removed from the master template; delete it.")
++            else:
+                 self.warn(kl.get(key, 1) - 1, "E014", f"Key '{key}' is not in the master template.")
+         for key, spec in fields.items():
+             ln = kl.get(key, 1) - 1
+@@ -381,6 +396,8 @@
+                 hint = "must be a quoted text value"
+             elif t == "int" and (not isinstance(v, int) or isinstance(v, bool)):
+                 hint = "must be a whole number"
++            elif t == "records" and not (isinstance(v, list) and all(isinstance(x, dict) for x in v)):
++                hint = "must be a list of entries with the same keys as in the master template"
+             elif t == "list" and not (isinstance(v, list) and all(isinstance(x, str) and x.strip() for x in v)):
+                 hint = "must be a list of non-empty quoted strings"
+             elif t == "date":
+@@ -405,6 +422,24 @@
+                 for item in v:
+                     if spec.get("item_pattern") and not re.fullmatch(spec["item_pattern"], item):
+                         self.err(ln, "E013", f"'{key}' item '{item}' does not match {spec['item_pattern']}")
++            if t == "records":
++                if spec.get("min_items") and len(v) < spec["min_items"]:
++                    self.err(ln, "E013", f"'{key}' needs at least {spec['min_items']} entries (has {len(v)}).")
++                for n_, item in enumerate(v, 1):
++                    for k_ in spec.get("item_keys", []):
++                        if not (isinstance(item.get(k_), str) and item[k_].strip()):
++                            self.err(ln, "E011", f"'{key}' entry {n_} lacks a text value for '{k_}'.")
++                    for k_ in item:
++                        if k_ not in spec.get("item_keys", []):
++                            self.warn(ln, "E014", f"'{key}' entry {n_} has key '{k_}' which is not in the master template.")
++                    for k_, pat in (spec.get("item_patterns") or {}).items():
++                        val = item.get(k_)
++                        if isinstance(val, str) and val.strip() and not re.fullmatch(pat, val):
++                            self.err(ln, "E013", f"'{key}' entry {n_}: {k_} '{val}' does not match {pat}")
++                    for k_, allowed in (spec.get("item_enums") or {}).items():
++                        val = item.get(k_)
++                        if isinstance(val, str) and val.strip() and val not in allowed:
++                            self.err(ln, "E013", f"'{key}' entry {n_}: {k_} '{val}' must be one of {allowed}")
+         # review overdue
+         d, n = _isodate(str(self.m("last_reviewed"))), self.meta.get("review_cycle_days")
+         if d and isinstance(n, int) and d + dt.timedelta(days=n) < self.today:
+@@ -572,7 +607,7 @@
+         canon_titles = [t for t, _ in learned["canon"]]
+         canon_type = dict(learned["canon"])
+         h2 = [h for h in self.headings if h[0] == 2]
+-        self.secs, prev, last_canon, ctx_urls = [], 0, -1, {}
++        self.secs, prev, last_canon, ctx_urls, legacy_ctx = [], 0, -1, {}, []
+         allowed_src = {u for u in (self.meta.get("source_file"), self.meta.get("source_url")) if u}
+         for k, (lvl, text, idx) in enumerate(h2):
+             end = h2[k + 1][2] if k + 1 < len(h2) else len(L)
+@@ -593,32 +628,17 @@
+                 if ci < last_canon:
+                     self.err(idx, "E027", f"'{sec['title']}' is out of order compared with the master template.")
+                 last_canon = max(last_canon, ci)
+-            # context line
+-            if sec["key"] in learned["exempt"]:
+-                continue
++            # old context line (no longer in the template) and section type taken from the title
+             j = idx + 1
+             while j < end and not L[j].strip():
+                 j += 1
+-            c = CTX.match(L[j]) if j < end else None
+-            if j >= end or not L[j].startswith("**Doc ID:**"):
+-                self.err(idx, "E062", f"Section '{sec['title']}' has no context line under the heading.")
+-                continue
+-            if not c:
+-                self.err(j, "E063", "Context line is malformed.")
+-                continue
+-            sec["type"] = c.group("type")
+-            if c.group("id") != self.meta.get("doc_id"):
+-                self.err(j, "E064", f"Doc ID '{c.group('id')}' differs from front-matter doc_id '{self.meta.get('doc_id')}'.")
+-            if sec["type"] not in learned["types"]:
+-                self.err(j, "E028", f"Unknown Section type '{sec['type']}'. Allowed: {sorted(learned['types'])}.")
+-            elif canon_type.get(sec["key"]) and canon_type[sec["key"]] != sec["type"]:
+-                self.err(j, "E028", f"Section '{sec['title']}' must have Section type '{canon_type[sec['key']]}', found '{sec['type']}'.")
+-            url = c.group("url")
+-            if allowed_src and url not in allowed_src:
+-                self.err(j, "E061", "Source link in the context line is neither source_file nor source_url.")
+-            if ctx_urls and url not in ctx_urls:
+-                self.err(j, "E061", f"Source link differs from other sections (line {min(ctx_urls.values()) + 1}).")
+-            ctx_urls.setdefault(url, j)
++            if j < end and L[j].startswith("**Doc ID:**"):
++                legacy_ctx.append(j)
++            sec["type"] = self._type_by_title(sec["title"])
++        if legacy_ctx:
++            lines_txt = ", ".join(str(n + 1) for n in legacy_ctx[:15]) + (" and more" if len(legacy_ctx) > 15 else "")
++            self.add(legacy_ctx[0], "E066", (self.cfg.get("legacy") or {}).get("severity", "error"),
++                     f"{len(legacy_ctx)} old context line(s) found (lines {lines_txt}).")
+         # required sections
+         have_types = {s["type"] for s in self.secs if s["type"]}
+         for t in self.cfg.get("required_section_types", []):
+@@ -626,7 +646,7 @@
+                 self.err(0, "E020", f"No section with Section type '{t}'.")
+         keys = {s["key"] for s in self.secs}
+         for t in self.cfg.get("required_section_titles", []):
+-            if t.lower() not in keys:
++            if not any(k == t.lower() or k.startswith(t.lower() + ":") for k in keys):
+                 self.err(0, "E020", f"Required section '{t}' is missing.")
+         first = next((s for s in self.secs), None)
+         ft = self.cfg.get("first_section_type")
+@@ -647,6 +667,19 @@
+             if fn:
+                 fn(sec)
+ 
++    def _type_by_title(self, title):
++        for typ, pats in (self.cfg.get("section_types") or {}).items():
++            if any(re.search(p, title, re.I) for p in pats):
++                return typ
++        return None
++
++    def legacy_checks(self):
++        legacy = self.cfg.get("legacy") or {}
++        old = {x.lower() for x in (legacy.get("sections") or [])}
++        for lvl, t, i in self.headings:
++            if lvl in (2, 3) and _strip_num(t).lower() in old:
++                self.add(i, "E068", legacy.get("severity", "error"), f"'{t}' was removed from the master template.")
++
+     def sec_labels(self, sec):
+         out = {}
+         for i in range(sec["idx"] + 1, sec["end"]):
+@@ -771,8 +804,12 @@
+             m = re.match(r"^\*\*([^*:]+):\*\*\s*(.*?)\s*$", self.clean[i]) if self.clean[i] else None
+             if m:
+                 lab[m.group(1)] = (i, m.group(2))
+-        has_video = any(l.startswith("**Video:**") for i, l in enumerate(self.lines) if not self.code[i])
+-        need = list(self.cfg.get("header_required", [])) + (["Video duration"] if has_video else [])
++        legacy = self.cfg.get("legacy") or {}
++        old = [n for n in (legacy.get("header_labels") or []) if n in lab]
++        if old:
++            self.add(lab[old[0]][0], "E067", legacy.get("severity", "error"),
++                     f"Old header lines under the H1 ({', '.join(old)}).")
++        need = list(self.cfg.get("header_required", []))
+         fm_map = {"Document ID": "doc_id", "Platform": "platform", "Difficulty": "difficulty", "Last reviewed": "last_reviewed"}
+         for n in need:
+             if n not in lab:
