@@ -936,7 +936,7 @@ class Verifier:
                         local = self.md_dir / unquote(parsed.path)
                         if not local.exists():
                             self.err(i, "E050", f"Image file not found: {s}")
-            if re.match(r"^!\[[^\]]*\]\([^)]*\)\s*$", ln.strip()):
+            if self.cfg.get("require_image_notes", False) and re.match(r"^!\[[^\]]*\]\([^)]*\)\s*$", ln.strip()):
                 j = i + 1
                 while j < len(L) and not L[j].strip():
                     j += 1
