@@ -1,8 +1,10 @@
-# Markdown Document Verification Agent
+# MarkShield: Markdown Quality Gate & RAG Verification Agent
 
 An autonomous, deterministic quality gate for technical Markdown files destined for enterprise Retrieval-Augmented Generation (RAG) knowledge bases (e.g., RAGFlow, LangChain, LlamaIndex).
 
-It validates structure, YAML front matter, heading outlines, code fences, Mermaid diagrams, tables, multimedia links, YouTube timestamps, and secret hygiene before documents are uploaded to vector indices.
+It validates structure, optional YAML front matter, heading outlines, code fences, Mermaid diagrams and flowcharts, tables, multimedia links, YouTube timestamps, and secret hygiene before documents are uploaded to vector indices.
+
+> **Full Use Case Catalog:** For the complete register of all 65 implemented validation rules and chunking patterns, see [`docs/RAG_VALIDATION_USE_CASES.md`](docs/RAG_VALIDATION_USE_CASES.md).
 
 ---
 
@@ -243,6 +245,19 @@ python docs/generate_all.py
 ---
 
 ## 11. Project Changelog
+
+### [2.1.0] - 2026-11-17
+- **Branding & Repository Creation:** Established GitHub repository as **MarkShield** (`mohitrajit/markshield`).
+- **Shift to RAG Syntax & Pattern Quality Gate:**
+  - Front matter (page properties) is now optional by default (`front_matter_required: false`), while retaining strict syntax, enum, and typing checks whenever present.
+  - Documents are no longer restricted to rigid master-template section names or fixed section sequences, enabling general technical Markdown documentation to be verified for RAG ingestion.
+- **Enhanced Flowchart & Diagram Checks:**
+  - Strict Mermaid syntax validation (type declaration, direction requirement for flowcharts/graphs, bracket balancing, and valid arrow connectors).
+  - Enforced `**Text description:**` below Mermaid and ASCII diagram blocks so vector retrieval engines can index visual architectures.
+- **Added Comprehensive Use Case Catalog:**
+  - Created [`docs/RAG_VALIDATION_USE_CASES.md`](docs/RAG_VALIDATION_USE_CASES.md) cataloging all 65 implemented structural, syntactic, and security rules across 11 functional categories.
+- **Cleaned Runtime Memory:**
+  - Emptied `verified/`, `failed/`, and `reports/` directories for a clean operational state.
 
 ### [2.0.0] - 2026-11-13
 - **Added:** Full technical documentation suite under `docs/`:
