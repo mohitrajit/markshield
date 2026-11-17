@@ -8,6 +8,11 @@ from verifier import load_rules, verify_file
 
 ROOT = Path(__file__).parent
 cfg = load_rules(ROOT / "rules.yaml")
+# Enable strict template checks for template mutation suite
+cfg["require_all_template_keys"] = True
+cfg["required_section_titles"] = ["Overview"]
+cfg["enforce_section_order"] = True
+cfg["require_section_numbering"] = True
 TODAY = dt.date(2026, 11, 4)
 # Keep the mutation baseline valid; the template metadata matches its history.
 BASE = (ROOT / "RAG-SAMPLE-MASTER-TEMPLATE.md").read_text(encoding="utf-8")

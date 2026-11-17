@@ -1,11 +1,22 @@
 # ---------------------------------------------------------------------------
-# The verifier LEARNS from the master template:
-#   - every front-matter key (and its type: text / number / list / list of entries / date)
-#   - every section title and the section order
-# Change the template file and the rules follow. This file only adds the
-# extra strictness (patterns, enums, minimum counts) the template can't express.
+# RAG Markdown Validator Configuration
+# Learns patterns and types from RAG-SAMPLE-MASTER-TEMPLATE.md.
 # ---------------------------------------------------------------------------
 template: RAG-SAMPLE-MASTER-TEMPLATE.md
+
+# Front-matter (Page properties) behavior:
+# Front-matter is optional for RAG documents. If present, it will be validated for syntax and format.
+front_matter_required: false
+
+# When front matter is present, whether all fields from the master template are required.
+# Set to false to allow arbitrary documents with partial or no front-matter.
+require_all_template_keys: false
+
+# Sections every document must contain, by title. Empty by default for general RAG documents.
+required_section_titles: []
+
+# Enforce strict section ordering matching the master template (false for general RAG):
+enforce_section_order: false
 
 field_overrides:
   doc_id:        {pattern: '^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*-\d{4}$'}
@@ -24,9 +35,6 @@ field_overrides:
 
 # Keys that are allowed in a document but are not in the template (no warning, not required)
 optional_keys: [ekg_config_version]
-
-# Sections every document must contain, by title. "Overview" also matches "Overview: How to ..."
-required_section_titles: [Overview]
 
 # The template no longer has "Section type" lines. A section's type (which decides the
 # extra checks it gets) is now taken from its title. Case-insensitive regular expressions.

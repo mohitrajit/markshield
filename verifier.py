@@ -199,9 +199,12 @@ _UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _c
 
 
 def read_front(lines):
-    """-> (meta|None, end_idx|None, error|None, {key: line_no}, [dup keys])"""
+    """-> (meta|None, end_idx|None, error|None, {key: line_no}, [dup keys])
+    Front matter is optional in general RAG documents. If absent, returns (None, None, None, {}, []).
+    If opened with '---' on line 1, it must be properly closed and valid YAML.
+    """
     if not lines or lines[0].strip() != "---":
-        return None, None, "File does not start with '---' on line 1.", {}, []
+        return None, None, None, {}, []
     end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
     if end is None:
         return None, None, "Front matter opened with '---' but never closed.", {}, []
@@ -247,8 +250,8 @@ def scan_fences(lines, start=0):
 def learn_template(path):
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     meta, end, err, _, _ = read_front(lines)
-    if err:
-        raise ValueError(f"Template front matter problem: {err}")
+    if err or meta is None:
+        raise ValueError(f"Template front matter problem: {err or 'Template must have YAML front matter'}")
     fields = {}
     for k, v in meta.items():
         if isinstance(v, list) and v and all(isinstance(x, dict) for x in v):
@@ -364,6 +367,10 @@ class Verifier:
     def front_matter(self):
         meta, end, err, kl, dups = read_front(self.lines)
         self.meta, self.fm_end, self.keyline = meta or {}, end, kl
+        if end is None and err is None:
+            if self.cfg.get("front_matter_required", False):
+                self.err(0, "E010", "File lacks required YAML front matter (must start with '---' on line 1).")
+            return
         if err:
             self.err(0, "E010", err)
             return
@@ -372,6 +379,7 @@ class Verifier:
         fields = self.cfg["fields"]
         legacy = self.cfg.get("legacy") or {}
         optional = set(self.cfg.get("optional_keys") or [])
+        require_all = self.cfg.get("require_all_template_keys", False)
         for key in self.meta:
             if key in fields or key in optional:
                 continue
@@ -383,7 +391,7 @@ class Verifier:
         for key, spec in fields.items():
             ln = kl.get(key, 1) - 1
             if key not in self.meta:
-                if spec.get("required", True):
+                if require_all and spec.get("required", True):
                     self.err(0, "E011", f"Required key '{key}' is missing.")
                 continue
             v, t = self.meta[key], spec["type"]
@@ -452,13 +460,20 @@ class Verifier:
         for i in range(self.start, len(self.lines)):
             if self.code[i] or self.lines[i].startswith("    "):
                 continue
-            m = HEAD.match(self.lines[i])
+            line = self.lines[i]
+            m_broken = re.match(r"^(#{1,6})([^#\s].*)$", line)
+            if m_broken:
+                self.err(i, "E024", f"ATX heading missing space after '#': '{line.strip()}'. Use '{m_broken.group(1)} {m_broken.group(2)}'.")
+            m = HEAD.match(line)
             if m:
                 text = re.sub(r"\s+#+\s*$", "", m.group(2) or "").strip()
                 self.headings.append((len(m.group(1)), text, i))
         h1 = [h for h in self.headings if h[0] == 1]
         first_body = next((i for i in range(self.start, len(self.lines)) if self.lines[i].strip()), None)
-        if not h1 or h1[0][2] != first_body:
+        if not h1:
+            self.err(first_body if first_body is not None else 0, "E022",
+                     "Document must contain a top-level '# Title' (H1).")
+        elif h1[0][2] != first_body:
             self.err(first_body if first_body is not None else 0, "E022",
                      "The first thing after the front matter must be the '# Title' (H1).")
         for lvl, t, i in h1[1:]:
@@ -529,17 +544,24 @@ class Verifier:
             if f["lang"] == "mermaid" and body:
                 self.mermaid(f, body)
             sec_type = self.type_at(s)
-            if f["lang"] == "mermaid" or (f["lang"] in ("text", "ascii") and sec_type == "diagrams"):
+            if f["lang"] == "mermaid" or (f["lang"] in ("text", "ascii") and (sec_type == "diagrams" or any("-->" in l or "+---" in l for l in body))):
                 j = e + 1
                 while j < len(self.lines) and not self.lines[j].strip():
                     j += 1
-                if j >= len(self.lines) or not re.match(r"^\*\*Text description[^*]*:\*\*\s*\S", self.lines[j]) \
-                        and not re.match(r"^\*\*Text description[^*]*:\*\*\s*$", self.lines[j]):
+                has_desc = False
+                if j < len(self.lines):
+                    next_line = self.lines[j].strip()
+                    if re.match(r"^\*\*(Text description|Description|Image note|Diagram note)[^*]*:\*\*", next_line) or \
+                       re.match(r"^\*\*(Text description|Description|Image note|Diagram note)[^*]*\*\*", next_line):
+                        has_desc = True
+                    elif next_line.startswith("> **Why every diagram needs a text version:") or next_line.startswith(">"):
+                        has_desc = True
+                if not has_desc:
                     self.err(e, "E094", "Diagram has no '**Text description:**' directly below it.")
 
     def mermaid(self, f, body):
         first = body[0].strip()
-        kind = next((t for t in MERMAID_TYPES if first == t or first.startswith(t + " ")), None)
+        kind = next((t for t in MERMAID_TYPES if first == t or first.startswith(t + " ") or first.startswith(t + "\t")), None)
         if not kind:
             self.err(f["start"], "E093", f"Unknown Mermaid diagram type '{first.split()[0]}'.")
             return
@@ -547,9 +569,14 @@ class Verifier:
             self.err(f["start"] + 1, "E093", f"'{kind}' needs a direction: TD, TB, BT, RL or LR.")
         if kind in ("flowchart", "graph"):
             for k, l in enumerate(self.lines[f["start"] + 1:f["end"]], f["start"] + 1):
+                raw = l.strip()
+                if not raw or raw.startswith("%%"):
+                    continue
                 for a, b in (("[", "]"), ("{", "}"), ("(", ")")):
                     if l.count(a) != l.count(b):
                         self.err(k, "E093", f"Unbalanced '{a}' '{b}' in diagram line.")
+                if re.search(r"(?<!-)->(?!>)", l) and not re.search(r"-[.\w\s]+->", l):
+                    self.err(k, "E093", "Invalid arrow syntax '->' in flowchart. Use '-->' or '-->|label|'.")
 
     def type_at(self, idx):
         for s in getattr(self, "secs", []):
@@ -603,31 +630,31 @@ class Verifier:
     # ---- sections
     def sections(self):
         L, cfg = self.lines, self.cfg
-        learned = cfg["learned"]
-        canon_titles = [t for t, _ in learned["canon"]]
-        canon_type = dict(learned["canon"])
+        learned = cfg.get("learned", {})
+        canon_titles = [t for t, _ in learned.get("canon", [])] if learned else []
+        enforce_order = cfg.get("enforce_section_order", False)
         h2 = [h for h in self.headings if h[0] == 2]
         self.secs, prev, last_canon, ctx_urls, legacy_ctx = [], 0, -1, {}, []
-        allowed_src = {u for u in (self.meta.get("source_file"), self.meta.get("source_url")) if u}
         for k, (lvl, text, idx) in enumerate(h2):
             end = h2[k + 1][2] if k + 1 < len(h2) else len(L)
             m = re.match(r"^(\d+)\.\s+(\S.*)$", text)
             sec = {"idx": idx, "end": end, "num": None, "title": text, "key": text.lower(), "type": None}
             self.secs.append(sec)
-            if not m:
-                self.err(idx, "E025", f"H2 must look like '## N. Title' (found '{text}').")
-            else:
+            if m:
                 sec["num"], sec["title"], sec["key"] = int(m.group(1)), m.group(2), m.group(2).lower()
                 if sec["num"] <= prev:
                     self.err(idx, "E025", f"Section number {sec['num']} must be greater than the previous ({prev}).")
                 elif sec["num"] != prev + 1:
                     self.warn(idx, "E025", f"Section numbering skips from {prev} to {sec['num']}.")
                 prev = sec["num"]
-            ci = canon_titles.index(sec["key"]) if sec["key"] in canon_titles else None
-            if ci is not None:
-                if ci < last_canon:
-                    self.err(idx, "E027", f"'{sec['title']}' is out of order compared with the master template.")
-                last_canon = max(last_canon, ci)
+            elif self.cfg.get("require_section_numbering", False):
+                self.err(idx, "E025", f"H2 must look like '## N. Title' (found '{text}').")
+            if enforce_order and canon_titles:
+                ci = canon_titles.index(sec["key"]) if sec["key"] in canon_titles else None
+                if ci is not None:
+                    if ci < last_canon:
+                        self.err(idx, "E027", f"'{sec['title']}' is out of order compared with the master template.")
+                    last_canon = max(last_canon, ci)
             # old context line (no longer in the template) and section type taken from the title
             j = idx + 1
             while j < end and not L[j].strip():
