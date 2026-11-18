@@ -159,27 +159,67 @@ Every batch run generates a formatted `.xlsx` workbook in `reports/` and attache
 - **Lightweight Email Body**: Displays executive metrics cards, summary tables, and clear status callouts without cluttering email clients.
 - **Single Zip Archive Packaging**: When `ATTACH_MD_FILES=true`, all auto-repaired and processed markdown files are bundled into a single archive (`Markdown_Files_<timestamp>.zip`). The email contains strictly **two attachments**: the `.xlsx` audit report and the `.zip` archive, avoiding individual attachment flood and eliminating nested directory duplicates.
 
-### Email Configuration (`.env`)
-The agent natively parses `.env` without third-party dependencies:
+### Enterprise Email Architecture: Modern Microsoft Graph API & Legacy SMTP
 
+#### Architectural Evolution: From SMTP Relay to Microsoft Graph API
+- **Earlier Architecture (Legacy SMTP Relay)**: In initial releases, MarkShield relied exclusively on standard SMTP relay via `smtplib` (e.g. Gmail App Passwords, local relays, or Microsoft 365 SMTP AUTH on port 587). However, modern enterprise Microsoft 365 tenancies increasingly enforce strict Security Defaults that disable basic authentication and block SMTP client submissions (`535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication disabled for Tenant`).
+- **Upgraded Architecture (Microsoft Graph REST API)**: MarkShield has been upgraded with a dual-engine email dispatcher. It natively supports **Microsoft Graph REST API (v1.0)** via OAuth 2.0 Client Credentials Grant (`POST /v1.0/users/{sender}/sendMail`), allowing automated 24/7 background email delivery directly through Microsoft Entra ID (Azure AD).
+- **Zero New Dependencies**: The Graph API engine utilizes Python's built-in `urllib.request` and `base64` modules, eliminating the need for bulky external Azure SDKs or MSAL packages.
+- **Backward Compatibility**: The legacy SMTP relay engine remains fully supported and preserved. The agent automatically detects which provider is configured via `MAIL_PROVIDER` in `.env`.
+
+#### Microsoft Entra ID (Azure Portal) Setup Guide
+To enable Microsoft Graph email dispatch for your corporate Microsoft 365 tenant, have your Microsoft 365 / Azure administrator perform the following steps:
+
+1. **Register Application**:
+   - Go to [Microsoft Entra admin center](https://entra.microsoft.com/) $\to$ **Identity** $\to$ **Applications** $\to$ **App registrations** $\to$ **New registration**.
+   - Name: `MarkShield-Quality-Gate-Agent`.
+   - Supported account types: *Accounts in this organizational directory only (Single tenant)*.
+   - Click **Register**. Note down the **Application (client) ID** and **Directory (tenant) ID**.
+2. **Configure API Permissions**:
+   - In the registered app, select **API permissions** $\to$ **Add a permission** $\to$ **Microsoft Graph** $\to$ **Application permissions**.
+   - Search for and check `Mail.Send`.
+   - Click **Add permissions**.
+   - Select **Grant admin consent for [Organization]** and confirm.
+3. **Generate Client Secret**:
+   - Navigate to **Certificates & secrets** $\to$ **Client secrets** $\to$ **New client secret**.
+   - Description: `MarkShield-Daemon-Secret` (set desired expiration, e.g. 180 or 365 days).
+   - Copy the secret **Value** immediately (this value will only be displayed once).
+4. *(Optional Best Practice)* **Restrict Mailbox Access**:
+   - By default, `Mail.Send` application permission allows sending from tenant mailboxes. To scope the application so it can only send from a designated notification address (e.g., `mohit.raj@radiantglobaltech.com`), the Exchange administrator can run:
+     ```powershell
+     New-ApplicationAccessPolicy -AppId "<AZURE_CLIENT_ID>" -PolicyScopeGroupId "MarkShieldSenders@radiantglobaltech.com" -AccessRight RestrictAccess -Description "Limit MarkShield agent to designated sender mailbox."
+     ```
+
+#### Environment Configuration (`.env`)
+
+##### Option 1: Microsoft Graph API (Modern Enterprise Auth — Recommended)
 ```ini
-# SMTP Relay Configuration (Gmail Relay Example)
+MAIL_PROVIDER=graph
+AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000
+AZURE_CLIENT_ID=00000000-0000-0000-0000-000000000000
+AZURE_CLIENT_SECRET=your_azure_client_secret_value
+MAIL_FROM=mohit.raj@radiantglobaltech.com
+MAIL_TO=mohit.raj@radiantglobaltech.com
+MAIL_CC=engineering-leads@radiantglobaltech.com
+MAIL_BCC=rag-audit-archive@radiantglobaltech.com
+ATTACH_MD_FILES=true
+```
+
+##### Option 2: Legacy SMTP Relay (Preserved for Gmail / On-Premises Relays)
+```ini
+MAIL_PROVIDER=smtp
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_SECURITY=starttls
 SMTP_USER=mohitrajsingh2601@gmail.com
 SMTP_PASS=xxxx xxxx xxxx xxxx          # 16-character Google App Password
-
-# Recipient Addresses
 MAIL_FROM=mohitrajsingh2601@gmail.com
 MAIL_TO=mohit.raj@radiantglobaltech.com
-MAIL_CC=engineering-leads@radiantglobaltech.com
-MAIL_BCC=rag-audit-archive@radiantglobaltech.com
+ATTACH_MD_FILES=true
+```
 
-# Email Attachment Options
-ATTACH_MD_FILES=true                   # Packages all processed .md files into a single clean .zip archive
-
-# Operational Parameters
+##### Operational Parameters (Common to Both Providers)
+```ini
 POLL_SECONDS=30
 SETTLE_SECONDS=5
 INBOX=inbox
@@ -188,7 +228,7 @@ FAILED=failed
 REPORTS=reports
 ```
 
-*Note: Microsoft 365 tenants with disabled SMTP client authentication (`535 5.7.139`) should route through an authorized Gmail relay or internal corporate relay as shown above.*
+*Diagnostic Verification: Execute `python agent.py --test-email` anytime to test connectivity, authentication, and attachment delivery across your configured provider (Graph or SMTP).*
 
 ---
 
@@ -234,7 +274,7 @@ The following matrix defines which files serve as the authoritative source of tr
 |:---|:---|:---|
 | **`verifier.py`** | 10-Pass Deterministic Verification Engine, Error Catalog (E001-E099), Regex Scanners | Chapter 1, Chapter 3, Chapter 5, Chapter 12 (Appendix) |
 | **`fixer.py`** | Autonomous Self-Healing Engine (14 Repair Passes, FAQ Transformers, Legacy Section Pruner) | Chapter 2, Chapter 4, Chapter 5 |
-| **`agent.py`** | Autonomous Daemon, File Routing (`verified/`/`failed/`), Multi-Tab Excel Generator, Zip Bundler, SMTP Relay | Chapter 2, Chapter 4, Chapter 5, Chapter 8 |
+| **`agent.py`** | Autonomous Daemon, File Routing (`verified/`/`failed/`), Multi-Tab Excel Generator, Zip Bundler, Dual Email Engine (Microsoft Graph REST API & SMTP Relay) | Chapter 2, Chapter 4, Chapter 5, Chapter 8 |
 | **`rules.yaml`** | Declarative Schema Constraints (`field_overrides`, `optional_keys`, `section_types`, `legacy`) | Chapter 3, Chapter 5, Chapter 12 (Appendix) |
 | **`RAG-SAMPLE-MASTER-TEMPLATE.md`** | Golden Master Contract; Authoritative Markdown Patterns Learned at Runtime | Chapter 1, Chapter 3, Chapter 5 |
 | **`test_mutations.py`** | 46-Mutation Regression Test Suite; Proof of Validator Sensitivity | Chapter 6, Chapter 7, Chapter 9 |

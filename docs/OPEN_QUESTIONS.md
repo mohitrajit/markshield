@@ -18,7 +18,7 @@ This register catalogs all items requiring engineer or management verification (
 
 | Item # | Document Location | Assumption / Uncertainty | Specific Question for Engineer | Resolution Status |
 |:---:|:---|:---|:---|:---|
-| **V1** | Chapter 5 & 8, Environment Config | Microsoft 365 Tenant Admin Approval Timeline (`[VERIFY]`) | When will the Radiant Global Tech M365 tenant administrator enable modern SMTP AUTH or OAuth2 client credentials to transition off the personal Gmail relay? | Open -- User indicated Gmail relay is temporary until admin approval. |
+| **V1** | Chapter 5 & 8, Environment Config | Microsoft 365 Tenant Admin Approval Timeline (`[VERIFY]`) | When will the Radiant Global Tech M365 tenant administrator enable modern SMTP AUTH or OAuth2 client credentials to transition off the personal Gmail relay? | **Resolved** -- Dual-engine email dispatcher implemented in `agent.py` supporting native Microsoft Graph REST API (OAuth 2.0 Client Credentials) alongside legacy SMTP. Admin creates Entra ID App with `Mail.Send` permission; no SMTP subscription required. |
 | **V2** | Chapter 8, Section 8.4 | Production Ingestion Trigger (`[VERIFY]`) | Will `agent.py` run as a Windows Task Scheduler service, a continuous background daemon on an ingestion VM, or a pre-commit CI hook? | Pending architectural decision on deployment topology. |
 | **V3** | Chapter 11, Section 11.1 | RAGFlow API Ingestion Endpoint (`[VERIFY]`) | What are the exact RAGFlow REST API dataset IDs and authentication tokens for the Phase 2 direct upload hook? | To be provided upon RAGFlow cluster provisioning. |
 

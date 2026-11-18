@@ -4,6 +4,7 @@ Run once:   python agent.py --once
 Run always: python agent.py            (polls every POLL_SECONDS)
 """
 import argparse
+import base64
 import html
 import json
 import os
@@ -11,6 +12,9 @@ import re
 import shutil
 import smtplib
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import zipfile
 from dataclasses import asdict
 from datetime import datetime
@@ -613,12 +617,144 @@ def render_html(results, excel_filename=None, processed_at=None, attached_md_fil
     return "\n".join(rows)
 
 
+def get_mail_provider():
+    """Determine configured email provider: 'graph' (Microsoft Graph API) or 'smtp' (SMTP relay)."""
+    p = os.getenv("MAIL_PROVIDER", "").strip().lower()
+    if p in ("graph", "msgraph", "azure", "m365"):
+        return "graph"
+    if p == "smtp":
+        return "smtp"
+    # Auto-detection heuristic:
+    if os.getenv("AZURE_CLIENT_ID") and os.getenv("AZURE_TENANT_ID") and os.getenv("AZURE_CLIENT_SECRET"):
+        return "graph"
+    if os.getenv("SMTP_HOST"):
+        return "smtp"
+    return None
+
+
+def _get_graph_access_token(tenant_id, client_id, client_secret):
+    """Obtain an OAuth2 Bearer access token for Microsoft Graph via client credentials grant."""
+    token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+    payload = urllib.parse.urlencode({
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": "https://graph.microsoft.com/.default",
+        "grant_type": "client_credentials"
+    }).encode("utf-8")
+    req = urllib.request.Request(token_url, data=payload, method="POST")
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data["access_token"]
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Microsoft Entra ID token request failed (HTTP {e.code}): {err_body}") from e
+    except Exception as e:
+        raise RuntimeError(f"Failed to connect to Microsoft Entra ID token endpoint: {e}") from e
+
+
+def send_email_graph(subject, html_body, text_body, to_recipients, cc_recipients=None, bcc_recipients=None,
+                     attachment_paths=None, sender=None):
+    """Dispatch email via Microsoft Graph REST API (v1.0 users/{sender}/sendMail)."""
+    tenant_id = os.getenv("AZURE_TENANT_ID")
+    client_id = os.getenv("AZURE_CLIENT_ID")
+    client_secret = os.getenv("AZURE_CLIENT_SECRET")
+    mail_from = sender or os.getenv("MAIL_FROM") or os.getenv("SMTP_USER")
+
+    if not (tenant_id and client_id and client_secret):
+        raise ValueError("Microsoft Graph requires AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET.")
+    if not mail_from:
+        raise ValueError("Microsoft Graph requires MAIL_FROM to specify the sending mailbox address.")
+
+    token = _get_graph_access_token(tenant_id, client_id, client_secret)
+
+    def _recip_list(addrs):
+        return [{"emailAddress": {"address": a}} for a in (addrs or []) if a]
+
+    graph_attachments = []
+    for att in (attachment_paths or []):
+        p = Path(att)
+        if p.is_file():
+            b64_content = base64.b64encode(p.read_bytes()).decode("ascii")
+            if p.suffix.lower() == ".xlsx":
+                ctype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            elif p.suffix.lower() == ".zip":
+                ctype = "application/zip"
+            elif p.suffix.lower() == ".csv":
+                ctype = "text/csv"
+            elif p.suffix.lower() == ".md":
+                ctype = "text/markdown"
+            else:
+                ctype = "application/octet-stream"
+            graph_attachments.append({
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": p.name,
+                "contentType": ctype,
+                "contentBytes": b64_content
+            })
+
+    message_payload = {
+        "message": {
+            "subject": subject,
+            "body": {
+                "contentType": "HTML",
+                "content": html_body
+            },
+            "toRecipients": _recip_list(to_recipients),
+        },
+        "saveToSentItems": "true"
+    }
+    cc_list = _recip_list(cc_recipients)
+    if cc_list:
+        message_payload["message"]["ccRecipients"] = cc_list
+    bcc_list = _recip_list(bcc_recipients)
+    if bcc_list:
+        message_payload["message"]["bccRecipients"] = bcc_list
+    if graph_attachments:
+        message_payload["message"]["attachments"] = graph_attachments
+
+    send_url = f"https://graph.microsoft.com/v1.0/users/{urllib.parse.quote(mail_from)}/sendMail"
+    post_data = json.dumps(message_payload).encode("utf-8")
+    req = urllib.request.Request(send_url, data=post_data, method="POST")
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Content-Type", "application/json")
+
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            if resp.status not in (200, 202):
+                raise RuntimeError(f"Unexpected status from Graph API: HTTP {resp.status}")
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Microsoft Graph sendMail failed (HTTP {e.code}): {err_body}") from e
+    except Exception as e:
+        raise RuntimeError(f"Failed to deliver email via Microsoft Graph: {e}") from e
+
+
+def send_email_smtp(msg):
+    """Dispatch email via legacy SMTP relay."""
+    host = os.getenv("SMTP_HOST")
+    security = os.getenv("SMTP_SECURITY", "starttls").lower()
+    port = int(os.getenv("SMTP_PORT", "465" if security == "ssl" else "587"))
+    timeout = float(os.getenv("SMTP_TIMEOUT", "30"))
+    client = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
+    with client(host, port, timeout=timeout) as s:
+        if security in {"starttls", "tls"}:
+            s.starttls()
+        if os.getenv("SMTP_USER"):
+            s.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASS", ""))
+        s.send_message(msg)
+
+
 def send_email(results, attachment_path=None, processed_at=None, attach_md=True, zip_path=None, md_names=None):
-    """Dispatch email report with Excel report and single .zip archive containing all processed .md files."""
-    host, to = os.getenv("SMTP_HOST"), os.getenv("MAIL_TO")
-    if not (host and to):
-        print("SMTP_HOST / MAIL_TO not set - skipping email (report saved in reports/).")
+    """Dispatch email report with Excel report and single .zip archive containing all processed .md files.
+    Supports modern Microsoft Graph API (OAuth 2.0) and legacy SMTP relay."""
+    provider = get_mail_provider()
+    to = os.getenv("MAIL_TO")
+    if not provider or not to:
+        print("Email dispatch skipped: No email provider configured (set MAIL_PROVIDER=graph or SMTP_HOST in .env) or MAIL_TO missing.")
         return
+
     recipients = [x.strip() for x in re.split(r"[,;]", to) if x.strip()]
     if not recipients:
         print("MAIL_TO is empty - skipping email (report saved in reports/).")
@@ -648,21 +784,13 @@ def send_email(results, attachment_path=None, processed_at=None, attach_md=True,
 
     excel_name = attachment_path.name if attachment_path else None
     zip_name = zip_path.name if (attach_md and zip_path and Path(zip_path).is_file()) else None
-
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = os.getenv("MAIL_FROM", os.getenv("SMTP_USER", "md-verifier@localhost"))
-    msg["To"] = ", ".join(recipients)
+    sender = os.getenv("MAIL_FROM", os.getenv("SMTP_USER", "md-verifier@localhost"))
 
     cc = os.getenv("MAIL_CC")
     cc_recipients = [x.strip() for x in re.split(r"[,;]", cc) if x.strip()] if cc else []
-    if cc_recipients:
-        msg["Cc"] = ", ".join(cc_recipients)
 
     bcc = os.getenv("MAIL_BCC")
     bcc_recipients = [x.strip() for x in re.split(r"[,;]", bcc) if x.strip()] if bcc else []
-    if bcc_recipients:
-        msg["Bcc"] = ", ".join(bcc_recipients)
 
     text_lines = [
         f"MarkShield RAG Quality Gate Report: {status_label}",
@@ -689,41 +817,60 @@ def send_email(results, attachment_path=None, processed_at=None, attach_md=True,
         for mdn in (md_names or []):
             text_lines.append(f" - {mdn}")
 
-    msg.set_content("\n".join(text_lines))
-    msg.add_alternative(render_html(results, excel_name, display_time, md_names, zip_filename=zip_name), subtype="html")
+    text_content = "\n".join(text_lines)
+    html_content = render_html(results, excel_name, display_time, md_names, zip_filename=zip_name)
 
-    # Attach Excel workbook
+    attachment_paths = []
     if attachment_path and Path(attachment_path).is_file():
-        path_obj = Path(attachment_path)
-        content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if path_obj.suffix == ".xlsx" else "text/csv"
-        maintype, subtype = content_type.split("/", 1)
-        msg.add_attachment(
-            path_obj.read_bytes(),
-            maintype=maintype,
-            subtype=subtype,
-            filename=path_obj.name
-        )
-
-    # Attach single Zip archive containing all Markdown files
+        attachment_paths.append(attachment_path)
     if attach_md and zip_path and Path(zip_path).is_file():
-        z_obj = Path(zip_path)
-        msg.add_attachment(
-            z_obj.read_bytes(),
-            maintype="application",
-            subtype="zip",
-            filename=z_obj.name
-        )
+        attachment_paths.append(zip_path)
 
-    security = os.getenv("SMTP_SECURITY", "starttls").lower()
-    port = int(os.getenv("SMTP_PORT", "465" if security == "ssl" else "587"))
-    timeout = float(os.getenv("SMTP_TIMEOUT", "30"))
-    client = smtplib.SMTP_SSL if security == "ssl" else smtplib.SMTP
-    with client(host, port, timeout=timeout) as s:
-        if security in {"starttls", "tls"}:
-            s.starttls()
-        if os.getenv("SMTP_USER"):
-            s.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASS", ""))
-        s.send_message(msg)
+    if provider == "graph":
+        send_email_graph(
+            subject=subject,
+            html_body=html_content,
+            text_body=text_content,
+            to_recipients=recipients,
+            cc_recipients=cc_recipients,
+            bcc_recipients=bcc_recipients,
+            attachment_paths=attachment_paths,
+            sender=sender
+        )
+    else:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = sender
+        msg["To"] = ", ".join(recipients)
+        if cc_recipients:
+            msg["Cc"] = ", ".join(cc_recipients)
+        if bcc_recipients:
+            msg["Bcc"] = ", ".join(bcc_recipients)
+
+        msg.set_content(text_content)
+        msg.add_alternative(html_content, subtype="html")
+
+        if attachment_path and Path(attachment_path).is_file():
+            path_obj = Path(attachment_path)
+            content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if path_obj.suffix == ".xlsx" else "text/csv"
+            maintype, subtype = content_type.split("/", 1)
+            msg.add_attachment(
+                path_obj.read_bytes(),
+                maintype=maintype,
+                subtype=subtype,
+                filename=path_obj.name
+            )
+
+        if attach_md and zip_path and Path(zip_path).is_file():
+            z_obj = Path(zip_path)
+            msg.add_attachment(
+                z_obj.read_bytes(),
+                maintype="application",
+                subtype="zip",
+                filename=z_obj.name
+            )
+
+        send_email_smtp(msg)
 
 
 def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=None, attach_md=None):
@@ -952,23 +1099,56 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
 
 
 def test_email():
-    """Send a diagnostic test email to verify SMTP configuration and attachments."""
-    host = os.getenv("SMTP_HOST")
+    """Send a diagnostic test email to verify email configuration (Microsoft Graph API or SMTP relay)."""
+    provider = get_mail_provider()
     to = os.getenv("MAIL_TO")
-    user = os.getenv("SMTP_USER")
-    security = os.getenv("SMTP_SECURITY", "starttls")
-    port = os.getenv("SMTP_PORT", "465" if security == "ssl" else "587")
-    if not (host and to):
-        print("ERROR: SMTP_HOST and MAIL_TO must be configured in .env or environment.")
-        return 1
     cc = os.getenv("MAIL_CC")
     bcc = os.getenv("MAIL_BCC")
-    print(f"Connecting to SMTP server: {host}:{port} (security={security}, user={user or 'none'})...")
-    print(f"To:  {to}")
+
+    if not provider:
+        print("ERROR: No email provider configured in .env or environment.")
+        print("\nTo configure Microsoft Graph API (Modern Enterprise M365 Auth, No SMTP Subscription Needed):")
+        print("  MAIL_PROVIDER=graph")
+        print("  AZURE_TENANT_ID=<your-directory-tenant-id-guid>")
+        print("  AZURE_CLIENT_ID=<your-application-client-id-guid>")
+        print("  AZURE_CLIENT_SECRET=<your-client-secret-value>")
+        print("  MAIL_FROM=user@yourdomain.com")
+        print("  MAIL_TO=recipient@yourdomain.com")
+        print("\nOr to configure legacy SMTP relay:")
+        print("  MAIL_PROVIDER=smtp")
+        print("  SMTP_HOST=smtp.gmail.com (or your company relay)")
+        print("  SMTP_PORT=587")
+        print("  SMTP_USER=user@domain.com")
+        print("  SMTP_PASS=password")
+        print("  MAIL_TO=recipient@domain.com")
+        return 1
+
+    if not to:
+        print("ERROR: MAIL_TO must be configured in .env or environment.")
+        return 1
+
+    if provider == "graph":
+        tenant = os.getenv("AZURE_TENANT_ID")
+        client_id = os.getenv("AZURE_CLIENT_ID")
+        sender = os.getenv("MAIL_FROM") or os.getenv("SMTP_USER")
+        print(f"Provider:      Microsoft Graph REST API (OAuth 2.0 Modern Auth)")
+        print(f"Tenant ID:     {tenant}")
+        print(f"Client ID:     {client_id}")
+        print(f"Sender (From): {sender}")
+    else:
+        host = os.getenv("SMTP_HOST")
+        user = os.getenv("SMTP_USER")
+        security = os.getenv("SMTP_SECURITY", "starttls")
+        port = os.getenv("SMTP_PORT", "465" if security == "ssl" else "587")
+        print(f"Provider:      Legacy SMTP Relay")
+        print(f"Host:          {host}:{port} (security={security}, user={user or 'none'})")
+        print(f"Sender (From): {os.getenv('MAIL_FROM', user or 'md-verifier@localhost')}")
+
+    print(f"To:            {to}")
     if cc:
-        print(f"Cc:  {cc}")
+        print(f"Cc:            {cc}")
     if bcc:
-        print(f"Bcc: {bcc}")
+        print(f"Bcc:           {bcc}")
 
     mock_results = [{
         "file": "test_connection.md",
@@ -995,17 +1175,17 @@ def test_email():
         display_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         test_excel = generate_excel_report(mock_results, REPORTS, display_time)
         send_email(mock_results, test_excel, display_time, attach_md=False, zip_path=None)
-        print(f"SUCCESS: Test email with attachment ({test_excel.name}) sent successfully to: {to}")
+        print(f"SUCCESS: Test email with attachment ({test_excel.name}) sent successfully via {provider.upper()} to: {to}")
         return 0
     except Exception as e:
-        print(f"ERROR: SMTP delivery failed: {type(e).__name__}: {e}")
+        print(f"ERROR: Email delivery failed via {provider.upper()}: {type(e).__name__}: {e}")
         return 1
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="MarkShield Folder Agent: Auto-fix, verify, route, and report.")
     ap.add_argument("--once", action="store_true", help="Process pending files in inbox once and exit")
-    ap.add_argument("--test-email", action="store_true", help="Send a test report email to verify SMTP credentials and exit")
+    ap.add_argument("--test-email", action="store_true", help="Send a test report email to verify email credentials (Graph or SMTP) and exit")
     ap.add_argument("--attach-md", dest="attach_md", action="store_true", default=None,
                     help="Attach processed Markdown files to the notification email")
     ap.add_argument("--no-attach-md", dest="attach_md", action="store_false",
