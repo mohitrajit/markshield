@@ -25,6 +25,14 @@ It validates structure, optional YAML front matter, heading outlines, code fence
                                      |
                                      v
 +------------------------------------+------------------------------------+
+|               AUTONOMOUS AUTO-FIXER (fixer.py)                          |
+|  - 12 Mechanical Format Healers (HTML <u> tags, FAQ prefixes, step      |
+|    headings, video timestamp links, bare code fences, YAML lists)       |
+|  - Auto-repairs syntax flaws prior to verification                      |
++------------------------------------+------------------------------------+
+                                     |
+                                     v
++------------------------------------+------------------------------------+
 |                  VERIFIER CORE ENGINE (verifier.py)                     |
 |  - 10-Pass Structural, Syntactic & Security Inspection                 |
 |  - Front-matter schema, heading trees, tables, code, links, YouTube     |
@@ -37,7 +45,7 @@ It validates structure, optional YAML front matter, heading outlines, code fence
                   v                                     v
 +-----------------+---------------+   +-----------------+-----------------+
 |        VERIFIED/ STORAGE        |   |         FAILED/ STORAGE         |
-|  - Markdown file moved          |   |  - Markdown file quarantined      |
+|  - Auto-repaired file moved     |   |  - Repaired file quarantined      |
 |  - Local image assets copied    |   |  - Local assets copied            |
 |  - Ready for RAGFlow Ingestion  |   |  - Standalone .report.txt emitted |
 +-----------------+---------------+   +-----------------+-----------------+
@@ -47,9 +55,10 @@ It validates structure, optional YAML front matter, heading outlines, code fence
                                      v
 +------------------------------------+------------------------------------+
 |                       REPORTING & NOTIFICATION                          |
-|  - OpenPyXL Multi-Tab Excel (.xlsx): Master Summary + Document Tabs     |
-|  - Clean HTML Executive Dashboard (No messy inline error dumps)          |
-|  - SMTP Enterprise Email Dispatch (Gmail Relay, STARTTLS/SSL, CC/BCC)   |
+|  - OpenPyXL Multi-Tab Excel (.xlsx): Master Summary (Fixed / User Action)|
+|    + Dedicated Document Tabs (AGENT FIXED vs USER FIX REQUIRED)          |
+|  - Clean HTML Executive Dashboard with 4 Metric Badges                  |
+|  - SMTP Enterprise Email Dispatch (Sends Excel + Optional .md Attachments|
 +-------------------------------------------------------------------------+
 ```
 
@@ -245,6 +254,17 @@ python docs/generate_all.py
 ---
 
 ## 11. Project Changelog
+
+### [2.2.0] - 2026-11-18
+- **Autonomous Auto-Fixer Module (`fixer.py`):**
+  - Built self-healing engine implementing 12 mechanical repair rules (raw HTML `<u>` tags to bold, FAQ `### Q:` and `**A:**` structures, step heading hyphens, video timestamp padding and links, H1 prefix trimming, obsolete legacy header lines, bare code fence language tagging, YAML string-to-list conversions, and blank line padding).
+  - Automatically heals 100% of formatting errors in clean documents (e.g. `Glossary.md`, `RAIN-O9-INT-3-0002.md`) and repairs over 270+ errors across legacy documents.
+- **Categorized Multi-Tab Excel Workbook:**
+  - **Sheet 1 (Summary):** Added `Fixed (Agent Fixed)` and `Need Update (User Action)` columns with color-coded fills.
+  - **Per-Document Sheets:** Categorized rows into `AGENT FIXED` (green), `USER FIX REQUIRED` (red), and `WARNING` (yellow), showing line numbers, rule codes, RAG impacts, and auto-repair resolutions.
+- **Email Notification & Markdown Attachments:**
+  - Sent notification emails automatically **after** all batch processing, auto-repair, and file routing completes.
+  - Added toggleable `ATTACH_MD_FILES` setting (`.env` and `--attach-md`/`--no-attach-md` CLI flags) to attach all processed `.md` files alongside the `.xlsx` report.
 
 ### [2.1.0] - 2026-11-17
 - **Branding & Repository Creation:** Established GitHub repository as **MarkShield** (`mohitrajit/markshield`).
