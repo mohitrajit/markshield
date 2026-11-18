@@ -81,6 +81,9 @@ class MarkdownFixer:
         # Step 9: Remove obsolete legacy lines under H1
         text = self._fix_legacy_headers(text)
 
+        # Step 9b: Remove obsolete legacy sections (Version history, Key takeaways, etc.)
+        text = self._fix_legacy_sections(text)
+
         # Step 10: Bare code fences (tag with inferred language or text)
         text = self._fix_bare_code_fences(text)
 
@@ -361,6 +364,48 @@ class MarkdownFixer:
             out.append(line)
         return "".join(out)
 
+    # ---- 9b. Remove obsolete legacy sections
+    def _fix_legacy_sections(self, text):
+        legacy_names = [
+            "Source and Video Links",
+            "Summary, Key Takeaways, and Questions Answered",
+            "Key Takeaways",
+            "Questions this document answers",
+            "Related Resources",
+            "Version History",
+        ]
+        lines = text.splitlines()
+        code_mask = _scan_fences(lines)
+        out = []
+        i = 0
+        skipping = False
+        while i < len(lines):
+            line = lines[i]
+            if not code_mask[i]:
+                m = re.match(r"^##\s+([^\n#]+)", line)
+                if m:
+                    title = m.group(1).strip()
+                    clean_title = re.sub(r"^\d+\.\s*", "", title).strip()
+                    is_legacy = any(
+                        clean_title.lower() == leg.lower() or clean_title.lower().startswith(leg.lower() + " -")
+                        for leg in legacy_names
+                    )
+                    if is_legacy:
+                        skipping = True
+                        self.fixes.append(FixRecord(
+                            line=i + 1, code="E068", rule="RemoveLegacySection",
+                            original=line, fixed="",
+                            description=f"Removed obsolete legacy section '## {title}'."
+                        ))
+                        i += 1
+                        continue
+                    else:
+                        skipping = False
+            if not skipping:
+                out.append(line)
+            i += 1
+        return "\n".join(out) + ("\n" if text.endswith("\n") else "")
+
     # ---- 10. Bare code fences (tag with inferred language or text)
     def _fix_bare_code_fences(self, text):
         lines = text.splitlines()
@@ -417,54 +462,110 @@ class MarkdownFixer:
     # ---- 11. FAQ Q&A structure
     def _fix_faq_structure(self, text):
         lines = text.splitlines()
-        code_mask = _scan_fences(lines)
+        out = []
         in_faq = False
-
-        for i, l in enumerate(lines):
-            if code_mask[i]:
-                continue
-            if re.match(r"^##\s+.*(?:faq|frequently asked questions|questions)", l, re.I):
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if re.match(r"^##\s+.*(?:faq|frequently asked questions|questions)", line, re.I):
                 in_faq = True
+                out.append(line)
+                i += 1
                 continue
-            elif re.match(r"^##\s+", l) and in_faq:
+            elif re.match(r"^##\s+", line) and in_faq:
                 in_faq = False
+                out.append(line)
+                i += 1
                 continue
 
-            if in_faq and l.startswith("### "):
-                heading_content = l[4:].strip()
-                # If question doesn't start with Q:
+            if in_faq and line.startswith("### "):
+                heading_content = line[4:].strip()
+                fixed_h = line
+                # Check question prefix
                 if not heading_content.startswith("Q: "):
                     # If ends with '?' or starts with question word
-                    is_question = heading_content.rstrip().endswith("?") or \
-                                  re.match(r"^(How|What|Why|When|Where|Who|Which|Can|Does|Is|Are|Do|Should|Could|Will)\b", heading_content, re.I)
-                    if is_question:
-                        fixed_h = f"### Q: {heading_content}"
+                    if heading_content.rstrip().endswith("?") or re.match(r"^(How|What|Why|When|Where|Who|Which|Can|Does|Is|Are|Do|Should|Could|Will|May)\b", heading_content, re.I):
+                        clean_q = re.sub(r"^Q?\d+[\.:\)]\s*", "", heading_content).strip()
+                        fixed_h = f"### Q: {clean_q}"
                         if not fixed_h.rstrip().endswith("?"):
                             fixed_h += "?"
-                        self.fixes.append(FixRecord(
-                            line=i + 1, code="E091", rule="NormalizeFaqQuestionHeading",
-                            original=l, fixed=fixed_h,
-                            description=f"Prepended 'Q: ' to FAQ question heading '{heading_content}'."
-                        ))
-                        lines[i] = fixed_h
+                    else:
+                        # Imperative code query task: e.g. "Retrieve ...", "Filter ..."
+                        first_char = heading_content[0].lower()
+                        rest = heading_content[1:]
+                        fixed_h = f"### Q: How do I {first_char}{rest}?"
 
-                        # Find immediate answer paragraph
-                        j = i + 1
-                        while j < len(lines) and not lines[j].strip():
-                            j += 1
-                        if j < len(lines) and not lines[j].startswith("###") and not lines[j].startswith("##"):
-                            ans_line = lines[j].strip()
-                            if not ans_line.startswith("**A:**") and not ans_line.startswith("**A**:"):
-                                if not (ans_line.startswith("|") or ans_line.startswith("```") or ans_line.startswith("!") or ans_line.startswith(">")):
-                                    fixed_ans = f"**A:** {ans_line}"
-                                    self.fixes.append(FixRecord(
-                                        line=j + 1, code="E091", rule="PrependFaqAnswerPrefix",
-                                        original=lines[j], fixed=fixed_ans,
-                                        description="Prepended '**A:** ' to FAQ answer paragraph."
-                                    ))
-                                    lines[j] = fixed_ans
+                    self.fixes.append(FixRecord(
+                        line=i + 1, code="E091", rule="NormalizeFaqQuestionHeading",
+                        original=line, fixed=fixed_h,
+                        description=f"Normalized FAQ question heading to '{fixed_h}'."
+                    ))
+                    line = fixed_h
+                elif not heading_content.rstrip().endswith("?"):
+                    fixed_h = f"### {heading_content}?"
+                    self.fixes.append(FixRecord(
+                        line=i + 1, code="E091", rule="NormalizeFaqQuestionHeading",
+                        original=line, fixed=fixed_h,
+                        description=f"Appended missing '?' to FAQ heading '{line}'."
+                    ))
+                    line = fixed_h
 
-        return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+                out.append(line)
+                i += 1
+
+                # Forward scan to find answer line/block before next heading
+                while i < len(lines) and not lines[i].strip():
+                    out.append(lines[i])
+                    i += 1
+
+                if i < len(lines) and not lines[i].startswith("###") and not lines[i].startswith("##"):
+                    ans_line = lines[i].strip()
+                    if not ans_line.startswith("**A:**") and not ans_line.startswith("**A**:"):
+                        if ans_line.startswith("|"):
+                            lead_in = "**A:** The comparison is summarized in the table below:"
+                            out.append(lead_in)
+                            out.append("")
+                            self.fixes.append(FixRecord(
+                                line=i + 1, code="E091", rule="InsertFaqTableAnswerPrefix",
+                                original=lines[i], fixed=lead_in + "\n\n" + lines[i],
+                                description="Injected answer lead-in before FAQ comparison table."
+                            ))
+                            out.append(lines[i])
+                        elif ans_line.startswith("```"):
+                            lead_in = "**A:** Use the following query:"
+                            out.append(lead_in)
+                            out.append("")
+                            self.fixes.append(FixRecord(
+                                line=i + 1, code="E091", rule="InsertFaqCodeAnswerPrefix",
+                                original=lines[i], fixed=lead_in + "\n\n" + lines[i],
+                                description="Injected answer lead-in before FAQ code example."
+                            ))
+                            out.append(lines[i])
+                        elif ans_line.startswith("- ") or ans_line.startswith("* "):
+                            fixed_ans = f"**A:** {ans_line}"
+                            self.fixes.append(FixRecord(
+                                line=i + 1, code="E091", rule="PrependFaqAnswerPrefix",
+                                original=lines[i], fixed=fixed_ans,
+                                description="Prepended '**A:** ' to FAQ bullet list item."
+                            ))
+                            out.append(fixed_ans)
+                        else:
+                            fixed_ans = f"**A:** {ans_line}"
+                            self.fixes.append(FixRecord(
+                                line=i + 1, code="E091", rule="PrependFaqAnswerPrefix",
+                                original=lines[i], fixed=fixed_ans,
+                                description="Prepended '**A:** ' to FAQ answer paragraph."
+                            ))
+                            out.append(fixed_ans)
+                    else:
+                        out.append(lines[i])
+                    i += 1
+                continue
+
+            out.append(line)
+            i += 1
+
+        return "\n".join(out) + ("\n" if text.endswith("\n") else "")
 
     # ---- 12. Blank line padding around headings, tables, fences
     def _fix_blank_line_padding(self, text):

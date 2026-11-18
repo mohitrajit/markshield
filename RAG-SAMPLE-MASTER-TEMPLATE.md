@@ -846,6 +846,12 @@ Document ingestion is not complete merely because a file upload succeeds. The pa
 
 ## 12. Frequently Asked Questions
 
+> 🟢 **Tip:** **FAQ Authoring Rules for RAG:**
+> - **Question Format:** Every entry must use `### Q: <Question>?` heading format.
+> - **Answer Format:** Every answer must begin with `**A:** <Direct answer or lead-in statement>`.
+> - **Table Answers:** When an FAQ answer is a table, never place the bare table immediately below the heading. Always provide an `**A:** ...` lead-in statement first (e.g., `**A:** The comparison is summarized below:`).
+> - **Code Query Answers:** When providing code or SQL query examples in FAQ, phrase the heading as an inquiry (e.g., `### Q: How do I ...?`) and provide an `**A:** Use the following query:` lead-in line before the code fence.
+
 ### Q: Is the client tool the same as the database server?
 
 **A:** No. The client tool is only an interface. The database server runs separately, usually on a dedicated machine.
@@ -857,6 +863,25 @@ Document ingestion is not complete merely because a file upload succeeds. The pa
 ### Q: Can I connect without a password?
 
 **A:** Yes, if you use Windows Authentication. Your Windows login is used instead.
+
+### Q: What is the difference between Windows Authentication and Database Authentication?
+
+**A:** The comparison between the two authentication modes is summarized below:
+
+| Authentication Mode | Credential Source | Best Used For | Security Benefit |
+|---|---|---|---|
+| **Windows Authentication** | Windows OS / Active Directory account | Internal corporate workstations and domain members | No database passwords transmitted over the network |
+| **Database (SQL) Authentication** | Internal database user table (`sa`, etc.) | External apps, third-party services, non-domain clients | Works across non-trusted network boundaries |
+
+### Q: How do I test the database connection using a SQL query?
+
+**A:** Open the query editor and execute the following query:
+
+```sql
+SELECT @@SERVERNAME AS ServerName,
+       SYSTEM_USER AS ConnectedUser,
+       GETDATE() AS CurrentServerTime;
+```
 
 ### Q: How can a YouTube timestamp open at a specific moment?
 
@@ -975,7 +1000,8 @@ Use these questions to test whether the document is retrievable after ingestion.
 - [ ] Tables have a header row and a separator row.
 - [ ] Each procedure shows the goal, steps, expected result, and tips.
 - [ ] Troubleshooting entries show symptom, cause, and fix.
-- [ ] FAQ entries use an explicit question and a direct answer.
+- [ ] FAQ entries use '### Q: ...?' heading format and begin answers with '**A:** ...' (including a lead-in line before any table or code block).
+- [ ] Code tasks in FAQ are phrased as inquiries (e.g., '### Q: How do I ...?') with '**A:** Use the following query:' before code fences.
 - [ ] Placeholder links and sample values are labeled.
 - [ ] No passwords, API keys, tokens, or customer data are included.
 - [ ] No escaped Markdown characters or trailing backslashes remain.

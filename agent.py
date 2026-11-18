@@ -71,6 +71,7 @@ RULE_IMPACTS = {
     "E041": "Mismatched table column count misaligns structured data cells.",
     "E042": "Missing blank line before table causes parser to conflate prose and table.",
     "E066": "Legacy document metadata line pollutes document body semantic search.",
+    "E068": "Obsolete legacy section duplicates metadata and pollutes document body semantic search.",
     "E072": "Raw HTML tags degrade embedding fidelity and confuse markdown chunkers.",
     "E075": "Missing blank line padding causes markdown parser to coalesce distinct syntax blocks.",
     "E080": "Missing procedure goal degrades instruction retrieval accuracy.",

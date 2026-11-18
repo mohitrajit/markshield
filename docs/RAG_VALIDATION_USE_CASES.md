@@ -116,4 +116,22 @@ Authoritative catalog of all Markdown structural, syntactic, and RAG chunking va
 * `UC-CHUNK-01`: **Maximum Heading Chunk Size Warning** (`E070`) — Warns when text under a single heading exceeds 2,500 characters without subheadings, preventing arbitrary mid-thought sentence splitting. `[IMPLEMENTED]`
 * `UC-CHUNK-02`: **Sequential Procedure Steps** (`E080` / `E081`) — Validates step sequence (`Step 1 - ...`, `Step 2 - ...`) and procedural completeness. `[IMPLEMENTED]`
 * `UC-CHUNK-03`: **Structured Troubleshooting Entries** (`E090`) — Validates Symptom, Cause, and Fix triplets. `[IMPLEMENTED]`
-* `UC-CHUNK-04`: **FAQ Q&A Formatting** (`E091`) — Enforces `### Q: ...?` ending with `?` and accompanied by `**A:** ...`. `[IMPLEMENTED]`
+* `UC-CHUNK-04`: **FAQ Q&A Formatting & Multi-Format Answers** (`E091`) — Enforces `### Q: ...?` heading format and accompanied by an explicit `**A:** ...` answer line. Fully supports prose answers, comparison tables (with `**A:** ...` lead-in statement), and code block queries (with `**A:** Use the following query:` lead-in). `[IMPLEMENTED]`
+
+---
+
+## 12. Autonomous Auto-Repair & Self-Healing (fixer.py)
+* `UC-FIX-01`: **Raw HTML Tag Auto-Conversion** (`E072`) — Automatically repairs raw HTML `<u>...</u>` tags to Markdown bold `**...**`. `[IMPLEMENTED]`
+* `UC-FIX-02`: **FAQ Question Normalization** (`E091`) — Prepends missing `Q: ` and appends missing `?` to all FAQ entries. `[IMPLEMENTED]`
+* `UC-FIX-03`: **FAQ Code Query Task Transformation** (`E091`) — Automatically converts imperative code query tasks (e.g. `### Retrieve Total Salaries...`) into questions (`### Q: How do I retrieve total salaries...?`). `[IMPLEMENTED]`
+* `UC-FIX-04`: **FAQ Table & Code Answer Lead-In Injection** (`E091`) — Injects `**A:** ...` lead-in lines before tables and code fences in FAQ entries so vector chunkers retain question-answer pairs. `[IMPLEMENTED]`
+* `UC-FIX-05`: **Step Heading Delimiter Normalization** (`E081`) — Converts em-dashes `—` and colons `:` in step headings to standard hyphens (`Step N - Title`). `[IMPLEMENTED]`
+* `UC-FIX-06`: **Video Timestamp Normalization** (`E082`) — Converts timestamp link dashes to hyphens, pads single-digit minutes (`4:56` $\to$ `04:56`), and synchronizes `&t=SECONDSs`. `[IMPLEMENTED]`
+* `UC-FIX-07`: **H1 Prefix Alignment** (`E016`) — Trims extraneous prefixes like `Topic - ` to align directly with front-matter title metadata. `[IMPLEMENTED]`
+* `UC-FIX-08`: **Obsolete Legacy Header Removal** (`E067`) — Strips obsolete metadata lines under H1 (`**Video duration:**`, `**Platform:**`). `[IMPLEMENTED]`
+* `UC-FIX-09`: **Obsolete Legacy Section Removal** (`E068`) — Automatically removes eliminated sections (`## Version history`, `## Key takeaways`) and their tables. `[IMPLEMENTED]`
+* `UC-FIX-10`: **Bare Code Fence Tagging** (`E031`) — Infers code language (`sql`, `python`, `json`, `bash`, `html`) and tags bare code fences. `[IMPLEMENTED]`
+* `UC-FIX-11`: **ATX Heading Space Enforcement** (`E024`) — Enforces whitespace after `#` (`##Heading` $\to$ `## Heading`). `[IMPLEMENTED]`
+* `UC-FIX-12`: **Heading Promotion** (`E021`) — Promotes top-level `###` to `##` in documents that skip H2 entirely (e.g. `Glossary.md`). `[IMPLEMENTED]`
+* `UC-FIX-13`: **Blank Line Padding Injection** (`E075` / `E042`) — Enforces blank line separation around headings, tables, and code fences. `[IMPLEMENTED]`
+* `UC-FIX-14`: **YAML Front-Matter Normalization** (`E012` / `E015`) — Normalizes string-to-list fields (e.g., `audience`), strips tabs, and deduplicates repeated keys. `[IMPLEMENTED]`

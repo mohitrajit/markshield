@@ -257,11 +257,19 @@ python docs/generate_all.py
 
 ### [2.2.0] - 2026-11-18
 - **Autonomous Auto-Fixer Module (`fixer.py`):**
-  - Built self-healing engine implementing 12 mechanical repair rules (raw HTML `<u>` tags to bold, FAQ `### Q:` and `**A:**` structures, step heading hyphens, video timestamp padding and links, H1 prefix trimming, obsolete legacy header lines, bare code fence language tagging, YAML string-to-list conversions, and blank line padding).
-  - Automatically heals 100% of formatting errors in clean documents (e.g. `Glossary.md`, `RAIN-O9-INT-3-0002.md`) and repairs over 270+ errors across legacy documents.
+  - Built self-healing engine implementing 14 mechanical repair rules:
+    - Raw HTML `<u>` tags to Markdown bold.
+    - FAQ Q&A normalization: Prepends `Q: `, appends `?`, and transforms imperative code tasks (`### Retrieve Total Salaries...`) into questions (`### Q: How do I retrieve total salaries...?`).
+    - FAQ Table & Code Answer lead-in injection: Injects `**A:** The comparison is summarized below:` before tables and `**A:** Use the following query:` before code blocks.
+    - Legacy section cleanup: Automatically removes eliminated sections (`## Version history`, `## Key takeaways`) and their tables.
+    - Step heading delimiters (`Step N - Title`), video timestamp link normalization, bare code fence language tagging, YAML string-to-list conversions, and blank line padding.
+  - Automatically heals 100% of formatting errors in clean documents (`Glossary.md`, `RAIN-O9-INT-3-0002.md`, `RAIN-09-INT-SQLSERVER-AV-0003.md`) and slashes errors in complex documents.
 - **Categorized Multi-Tab Excel Workbook:**
   - **Sheet 1 (Summary):** Added `Original Status (Pre-Fix)` (showing pre-repair failure state, error count, and rule codes), `Final Status`, `Fixed (Agent Fixed)`, and `Need Update (User Action)` columns with color-coded fills.
   - **Per-Document Sheets:** Categorized rows into `AGENT FIXED` (green), `USER FIX REQUIRED` (red), and `WARNING` (yellow), showing line numbers, rule codes, RAG impacts, and auto-repair resolutions.
+- **Master Template Reference (`RAG-SAMPLE-MASTER-TEMPLATE.md`):**
+  - Updated `## 12. Frequently Asked Questions` with canonical examples for all FAQ types: Text answers, Table answers with lead-in lines, and Code query answers with lead-in lines.
+  - Added RAG FAQ authoring rules callout box and updated the checklist.
 - **Email Notification & Markdown Attachments:**
   - Sent notification emails automatically **after** all batch processing, auto-repair, and file routing completes.
   - Added toggleable `ATTACH_MD_FILES` setting (`.env` and `--attach-md`/`--no-attach-md` CLI flags) to attach all processed `.md` files alongside the `.xlsx` report.
