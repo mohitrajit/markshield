@@ -260,7 +260,7 @@ python docs/generate_all.py
   - Built self-healing engine implementing 12 mechanical repair rules (raw HTML `<u>` tags to bold, FAQ `### Q:` and `**A:**` structures, step heading hyphens, video timestamp padding and links, H1 prefix trimming, obsolete legacy header lines, bare code fence language tagging, YAML string-to-list conversions, and blank line padding).
   - Automatically heals 100% of formatting errors in clean documents (e.g. `Glossary.md`, `RAIN-O9-INT-3-0002.md`) and repairs over 270+ errors across legacy documents.
 - **Categorized Multi-Tab Excel Workbook:**
-  - **Sheet 1 (Summary):** Added `Fixed (Agent Fixed)` and `Need Update (User Action)` columns with color-coded fills.
+  - **Sheet 1 (Summary):** Added `Original Status (Pre-Fix)` (showing pre-repair failure state, error count, and rule codes), `Final Status`, `Fixed (Agent Fixed)`, and `Need Update (User Action)` columns with color-coded fills.
   - **Per-Document Sheets:** Categorized rows into `AGENT FIXED` (green), `USER FIX REQUIRED` (red), and `WARNING` (yellow), showing line numbers, rule codes, RAG impacts, and auto-repair resolutions.
 - **Email Notification & Markdown Attachments:**
   - Sent notification emails automatically **after** all batch processing, auto-repair, and file routing completes.

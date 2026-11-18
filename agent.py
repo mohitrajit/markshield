@@ -20,7 +20,7 @@ from urllib.parse import unquote, urlsplit
 import yaml
 
 from fixer import fix_markdown
-from verifier import load_rules, to_text, verify_file
+from verifier import Verifier, load_rules, to_text, verify_file
 
 BASE = Path(__file__).resolve().parent
 
@@ -272,7 +272,8 @@ def generate_excel_report(results, report_dir, processed_at=None):
         # 1. Summary sheet
         ws_summary.append([
             "Document Name",
-            "Status",
+            "Original Status (Pre-Fix)",
+            "Final Status",
             "Fixed (Agent Fixed)",
             "Need Update (User Action)",
             "Warnings",
@@ -285,6 +286,8 @@ def generate_excel_report(results, report_dir, processed_at=None):
 
         for r in results:
             sheet_title = _safe_sheet_title(r["file"], existing_sheet_names)
+            raw_status_str = r.get("raw_status_str", "UNKNOWN")
+            raw_passed = r.get("raw_passed", False)
             fixed_cnt = r.get("fixed_count", 0)
             user_cnt = r.get("errors", 0)
             warn_cnt = r.get("warnings", 0)
@@ -293,6 +296,7 @@ def generate_excel_report(results, report_dir, processed_at=None):
 
             ws_summary.append([
                 r["file"],
+                raw_status_str,
                 status_str,
                 fixed_cnt,
                 user_cnt,
@@ -306,8 +310,18 @@ def generate_excel_report(results, report_dir, processed_at=None):
             # Document name
             ws_summary.cell(row=cur_row, column=1).font = Font(name="Calibri", size=11, bold=True)
 
-            # Status cell
-            status_cell = ws_summary.cell(row=cur_row, column=2)
+            # Original Status (Pre-Fix) cell
+            orig_cell = ws_summary.cell(row=cur_row, column=2)
+            orig_cell.alignment = Alignment(horizontal="center", vertical="center")
+            if raw_passed:
+                orig_cell.fill = passed_fill
+                orig_cell.font = passed_font
+            else:
+                orig_cell.fill = failed_fill
+                orig_cell.font = failed_font
+
+            # Final Status cell
+            status_cell = ws_summary.cell(row=cur_row, column=3)
             status_cell.alignment = Alignment(horizontal="center", vertical="center")
             if r["passed"]:
                 status_cell.fill = passed_fill
@@ -317,7 +331,7 @@ def generate_excel_report(results, report_dir, processed_at=None):
                 status_cell.font = failed_font
 
             # Fixed (Agent Fixed)
-            fixed_cell = ws_summary.cell(row=cur_row, column=3)
+            fixed_cell = ws_summary.cell(row=cur_row, column=4)
             fixed_cell.alignment = Alignment(horizontal="center", vertical="center")
             if fixed_cnt > 0:
                 fixed_cell.fill = passed_fill
@@ -326,7 +340,7 @@ def generate_excel_report(results, report_dir, processed_at=None):
                 fixed_cell.font = neutral_font
 
             # Need Update (User Action)
-            user_cell = ws_summary.cell(row=cur_row, column=4)
+            user_cell = ws_summary.cell(row=cur_row, column=5)
             user_cell.alignment = Alignment(horizontal="center", vertical="center")
             if user_cnt > 0:
                 user_cell.fill = failed_fill
@@ -336,7 +350,7 @@ def generate_excel_report(results, report_dir, processed_at=None):
                 user_cell.font = passed_font
 
             # Warnings
-            warn_cell = ws_summary.cell(row=cur_row, column=5)
+            warn_cell = ws_summary.cell(row=cur_row, column=6)
             warn_cell.alignment = Alignment(horizontal="center", vertical="center")
             if warn_cnt > 0:
                 warn_cell.fill = warn_fill
@@ -345,7 +359,7 @@ def generate_excel_report(results, report_dir, processed_at=None):
                 warn_cell.font = neutral_font
 
             # Total & Sheet Tab & Timestamp
-            for col_idx in (6, 7, 8):
+            for col_idx in (7, 8, 9):
                 c = ws_summary.cell(row=cur_row, column=col_idx)
                 c.alignment = Alignment(horizontal="center", vertical="center")
                 c.font = neutral_font
@@ -440,7 +454,9 @@ def generate_excel_report(results, report_dir, processed_at=None):
             for col in ws.columns:
                 col_letter = col[0].column_letter
                 max_len = max(len(str(c.value or "")) for c in col)
-                if not is_summary and col_letter in ("E", "F", "G"):
+                if is_summary and col_letter == "B":
+                    ws.column_dimensions[col_letter].width = 38
+                elif not is_summary and col_letter in ("E", "F", "G"):
                     ws.column_dimensions[col_letter].width = min(max(max_len + 3, 25), 65)
                     for c in col[1:]:
                         c.alignment = Alignment(wrap_text=True, vertical="top")
@@ -525,7 +541,8 @@ def render_html(results, excel_filename=None, processed_at=None, attached_md_fil
     rows.append(
         "<tr style='background:#f6f8fa;color:#24292f;text-align:left;'>"
         "<th>Document Name</th>"
-        "<th style='text-align:center;'>Status</th>"
+        "<th style='text-align:center;'>Original Status (Pre-Fix)</th>"
+        "<th style='text-align:center;'>Final Status</th>"
         "<th style='text-align:center;'>Fixed (Agent Fixed)</th>"
         "<th style='text-align:center;'>Need Update (User)</th>"
         "<th style='text-align:center;'>Warnings</th>"
@@ -533,6 +550,11 @@ def render_html(results, excel_filename=None, processed_at=None, attached_md_fil
         "</tr>"
     )
     for r in results:
+        raw_passed = r.get("raw_passed", False)
+        orig_color = "#1a7f37" if raw_passed else "#cf222e"
+        orig_bg = "#d4edda" if raw_passed else "#f8d7da"
+        orig_text = html.escape(r.get("raw_status_str", "UNKNOWN"))
+
         res_color = "#1a7f37" if r["passed"] else "#cf222e"
         res_bg = "#d4edda" if r["passed"] else "#f8d7da"
         res_text = "PASSED" if r["passed"] else "FAILED"
@@ -547,6 +569,7 @@ def render_html(results, excel_filename=None, processed_at=None, attached_md_fil
         rows.append(
             f"<tr>"
             f"<td><b>{html.escape(r['file'])}</b></td>"
+            f"<td style='text-align:center;background:{orig_bg};color:{orig_color};font-weight:bold;'>{orig_text}</td>"
             f"<td style='text-align:center;background:{res_bg};color:{res_color};font-weight:bold;'>{res_text}</td>"
             f"<td style='text-align:center;'>{fixed_badge}</td>"
             f"<td style='text-align:center;'>{user_badge}</td>"
@@ -731,6 +754,10 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
                 "warnings": 0,
                 "fixed_count": 0,
                 "total_detected": 1,
+                "raw_passed": False,
+                "raw_errors_count": 1,
+                "raw_codes": ["E001"],
+                "raw_status_str": "FAILED (1 error: E001)",
                 "fixes": [],
                 "issues": [],
                 "combined_issues": [{
@@ -748,6 +775,24 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
             processed_md_paths.append(dest)
             results.append(r)
             continue
+
+        # 1b. Inspect raw pre-fix verification status
+        try:
+            v_raw = Verifier(cfg, f.parent)
+            raw_issues = v_raw.run(raw_text)
+            raw_errors = [i for i in raw_issues if i.severity == "error"]
+            raw_passed = (len(raw_errors) == 0)
+            raw_codes = sorted(list({i.code for i in raw_errors}))
+        except Exception:
+            raw_passed = False
+            raw_errors = [1]
+            raw_codes = ["E001"]
+
+        if raw_passed:
+            raw_status_str = "PASSED (Clean)"
+        else:
+            codes_str = ", ".join(raw_codes[:4]) + ("..." if len(raw_codes) > 4 else "")
+            raw_status_str = f"FAILED ({len(raw_errors)} errors: {codes_str})"
 
         # 2. Autonomous Auto-Fixer: Heal mechanical formatting flaws
         fixed_text, fixes = fix_markdown(raw_text, f.name)
@@ -804,6 +849,10 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
         r["fixes"] = fixes
         r["total_detected"] = len(fixes) + r["errors"] + r["warnings"]
         r["combined_issues"] = combined_issues
+        r["raw_passed"] = raw_passed
+        r["raw_errors_count"] = len(raw_errors)
+        r["raw_codes"] = raw_codes
+        r["raw_status_str"] = raw_status_str
 
         # 5. Route file to verified/ or failed/
         try:
@@ -896,6 +945,8 @@ def test_email():
 
     mock_results = [{
         "file": "test_connection.md",
+        "raw_passed": False,
+        "raw_status_str": "FAILED (1 error: E072)",
         "passed": True,
         "errors": 0,
         "warnings": 0,
