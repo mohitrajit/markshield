@@ -144,13 +144,20 @@ Every reported issue includes the exact source line number, severity (`ERROR` or
 
 ## 5. Enterprise Reporting & Email Configuration
 
+### Autonomous Self-Healing Engine (`fixer.py`)
+Before routing, MarkShield applies an autonomous, deterministic repair pass across 14 distinct error patterns (`UC-FIX-01` through `UC-FIX-14`):
+- **FAQ Auto-Healing**: Re-formats imperative code query headings (`### Retrieve ...` $\to$ `### Q: How do I retrieve ...?`), enforces `Q: ` / `?` structure, and automatically injects canonical lead-in lines (`**A:** The comparison is summarized in the table below:` or `**A:** Use the following query:`) for table and code answers.
+- **Legacy Section Pruning**: Removes deprecated sections (`## Version history`, `## Key takeaways`) per `rules.yaml` (`E068`).
+- **Formatting Normalization**: Injects missing blank lines around headings, code fences, and tables; adds language tags (`text`) to untagged fences; strips UTF-8 BOMs; and auto-quotes special YAML strings.
+
 ### Multi-Tab Excel Workbook (`openpyxl`)
 Every batch run generates a formatted `.xlsx` workbook in `reports/` and attaches it to the notification email:
-- **`Summary` Tab**: Executive dashboard with document names, color-coded status badges, error/warning tallies, pointers to document sheet tabs, and human-readable timestamps (`YYYY-MM-DD HH:MM:SS`).
-- **Dedicated Document Tabs**: Each processed document receives an isolated worksheet tab named safely via `_safe_sheet_title()` (clamped to 31 chars, illegal characters sanitized, duplicate stems resolved). Contains frozen headers, autofilters, wrapped text, and exact line-by-line issue details.
+- **`Summary` Tab**: Executive dashboard with document names, color-coded post-fix status badges, pre-fix audit status (`Original Status (Pre-Fix)` listing initial failure rules and error counts), error/warning/fixed tallies, action category (`ALL CLEAR` vs `USER ACTION REQUIRED`), pointers to document sheet tabs, and human-readable timestamps (`YYYY-MM-DD HH:MM:SS`).
+- **Dedicated Document Tabs**: Each processed document receives an isolated worksheet tab named safely via `_safe_sheet_title()` (clamped to 31 chars, illegal characters sanitized, duplicate stems resolved). Features an **Issue Resolution** classification column clearly distinguishing `AGENT FIXED` (resolved automatically) from `USER FIX REQUIRED` (needs author intervention), with line numbers, error codes, and descriptions.
 
-### Clean HTML Email Dashboard
-The email body displays a clean status card and attachment callout. Forensic issue dumps are excluded from the HTML body, keeping emails lightweight and readable on all mobile and desktop email clients.
+### Clean HTML Email Dashboard & Single Zip Archive
+- **Lightweight Email Body**: Displays executive metrics cards, summary tables, and clear status callouts without cluttering email clients.
+- **Single Zip Archive Packaging**: When `ATTACH_MD_FILES=true`, all auto-repaired and processed markdown files are bundled into a single archive (`Markdown_Files_<timestamp>.zip`). The email contains strictly **two attachments**: the `.xlsx` audit report and the `.zip` archive, avoiding individual attachment flood and eliminating nested directory duplicates.
 
 ### Email Configuration (`.env`)
 The agent natively parses `.env` without third-party dependencies:
@@ -168,6 +175,9 @@ MAIL_FROM=mohitrajsingh2601@gmail.com
 MAIL_TO=mohit.raj@radiantglobaltech.com
 MAIL_CC=engineering-leads@radiantglobaltech.com
 MAIL_BCC=rag-audit-archive@radiantglobaltech.com
+
+# Email Attachment Options
+ATTACH_MD_FILES=true                   # Packages all processed .md files into a single clean .zip archive
 
 # Operational Parameters
 POLL_SECONDS=30
@@ -210,7 +220,7 @@ python test_mutations.py
 ## 8. Strategic Roadmap
 
 - **Phase 2 (Ingestion Hook)**: Direct API hook to upload verified documents into RAGFlow datasets immediately upon passing.
-- **Phase 3 (AI Auto-Fixer)**: Autonomous self-healing module to automatically fix whitespace, missing blank lines around headings/tables, and code language tags before quarantine.
+- **Phase 3 (Self-Healing Auto-Fixer)**: **[COMPLETED]** Autonomous repair engine (`fixer.py`) with 14 deterministic recovery routines (`UC-FIX-01` through `UC-FIX-14`), including FAQ question/code/table normalization and legacy section pruning.
 - **Phase 4 (Semantic Quality Reviewer)**: Optional LLM evaluation stage to verify title-content coherence, procedure expected results, and QA answerability.
 - **Phase 5 (Centralized Telemetry)**: Web dashboard displaying batch trends, common failure codes, and ingestion health metrics.
 
@@ -223,7 +233,8 @@ The following matrix defines which files serve as the authoritative source of tr
 | Authoritative File | Subsystem / Responsibility | Dependent Documentation Chapters |
 |:---|:---|:---|
 | **`verifier.py`** | 10-Pass Deterministic Verification Engine, Error Catalog (E001-E099), Regex Scanners | Chapter 1, Chapter 3, Chapter 5, Chapter 12 (Appendix) |
-| **`agent.py`** | Autonomous Daemon, File Routing (`verified/`/`failed/`), Multi-Tab Excel Generator, SMTP Relay | Chapter 2, Chapter 4, Chapter 5, Chapter 8 |
+| **`fixer.py`** | Autonomous Self-Healing Engine (14 Repair Passes, FAQ Transformers, Legacy Section Pruner) | Chapter 2, Chapter 4, Chapter 5 |
+| **`agent.py`** | Autonomous Daemon, File Routing (`verified/`/`failed/`), Multi-Tab Excel Generator, Zip Bundler, SMTP Relay | Chapter 2, Chapter 4, Chapter 5, Chapter 8 |
 | **`rules.yaml`** | Declarative Schema Constraints (`field_overrides`, `optional_keys`, `section_types`, `legacy`) | Chapter 3, Chapter 5, Chapter 12 (Appendix) |
 | **`RAG-SAMPLE-MASTER-TEMPLATE.md`** | Golden Master Contract; Authoritative Markdown Patterns Learned at Runtime | Chapter 1, Chapter 3, Chapter 5 |
 | **`test_mutations.py`** | 46-Mutation Regression Test Suite; Proof of Validator Sensitivity | Chapter 6, Chapter 7, Chapter 9 |

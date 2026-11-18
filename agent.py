@@ -11,6 +11,7 @@ import re
 import shutil
 import smtplib
 import time
+import zipfile
 from dataclasses import asdict
 from datetime import datetime
 from email.message import EmailMessage
@@ -482,7 +483,7 @@ def generate_excel_report(results, report_dir, processed_at=None):
         return csv_path
 
 
-def render_html(results, excel_filename=None, processed_at=None, attached_md_files=None):
+def render_html(results, excel_filename=None, processed_at=None, attached_md_files=None, zip_filename=None):
     """Render an HTML email body with metric cards, summary table, and attachment links."""
     p = sum(r["passed"] for r in results)
     total_files = len(results)
@@ -589,7 +590,16 @@ def render_html(results, excel_filename=None, processed_at=None, attached_md_fil
             f"</div>"
         )
 
-    if attached_md_files:
+    if zip_filename:
+        count_str = f" ({len(attached_md_files)} files)" if attached_md_files else ""
+        file_list = ", ".join(f"<code>{html.escape(f)}</code>" for f in (attached_md_files or []))
+        rows.append(
+            f"<div style='background:#f0fff4;border-left:4px solid #2da44e;padding:12px 16px;margin:10px 0;border-radius:3px;'>"
+            f"<strong>&#128230; All Markdown Files Packaged in Zip Archive:</strong> <code style='background:#ffffff;padding:2px 6px;border-radius:3px;'>{html.escape(zip_filename)}</code>{count_str}<br>"
+            f"<span style='font-size:12px;color:#57606a;'>All auto-repaired and processed markdown files are bundled into this single archive for clean 1-click download: {file_list}</span>"
+            f"</div>"
+        )
+    elif attached_md_files:
         file_list = ", ".join(f"<code>{html.escape(f)}</code>" for f in attached_md_files)
         rows.append(
             f"<div style='background:#f0fff4;border-left:4px solid #2da44e;padding:12px 16px;margin:10px 0;border-radius:3px;'>"
@@ -603,8 +613,8 @@ def render_html(results, excel_filename=None, processed_at=None, attached_md_fil
     return "\n".join(rows)
 
 
-def send_email(results, attachment_path=None, processed_at=None, attach_md=True, md_paths=None):
-    """Dispatch email report with Excel report and optionally all processed .md files attached."""
+def send_email(results, attachment_path=None, processed_at=None, attach_md=True, zip_path=None, md_names=None):
+    """Dispatch email report with Excel report and single .zip archive containing all processed .md files."""
     host, to = os.getenv("SMTP_HOST"), os.getenv("MAIL_TO")
     if not (host and to):
         print("SMTP_HOST / MAIL_TO not set - skipping email (report saved in reports/).")
@@ -637,7 +647,7 @@ def send_email(results, attachment_path=None, processed_at=None, attach_md=True,
             subject = f"[MarkShield] ACTION REQUIRED: {p}/{len(results)} passed ({total_fixed} auto-fixed, {total_user_fix} need user update)"
 
     excel_name = attachment_path.name if attachment_path else None
-    attached_md_names = [Path(p).name for p in md_paths if Path(p).is_file()] if (attach_md and md_paths) else []
+    zip_name = zip_path.name if (attach_md and zip_path and Path(zip_path).is_file()) else None
 
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -673,14 +683,14 @@ def send_email(results, attachment_path=None, processed_at=None, attach_md=True,
         text_lines.append(f"Detailed Excel workbook attached: {excel_name}")
         text_lines.append("Open the attached workbook to view Sheet 1 Summary and dedicated sheet tabs per document.")
 
-    if attached_md_names:
+    if zip_name:
         text_lines.append("")
-        text_lines.append(f"Processed Markdown files attached ({len(attached_md_names)} files):")
-        for mdn in attached_md_names:
+        text_lines.append(f"All processed Markdown files packaged in single archive: {zip_name} ({len(md_names or [])} files)")
+        for mdn in (md_names or []):
             text_lines.append(f" - {mdn}")
 
     msg.set_content("\n".join(text_lines))
-    msg.add_alternative(render_html(results, excel_name, display_time, attached_md_names), subtype="html")
+    msg.add_alternative(render_html(results, excel_name, display_time, md_names, zip_filename=zip_name), subtype="html")
 
     # Attach Excel workbook
     if attachment_path and Path(attachment_path).is_file():
@@ -694,17 +704,15 @@ def send_email(results, attachment_path=None, processed_at=None, attach_md=True,
             filename=path_obj.name
         )
 
-    # Attach Markdown files if enabled
-    if attach_md and md_paths:
-        for mdp in md_paths:
-            p = Path(mdp)
-            if p.is_file():
-                msg.add_attachment(
-                    p.read_bytes(),
-                    maintype="text",
-                    subtype="markdown",
-                    filename=p.name
-                )
+    # Attach single Zip archive containing all Markdown files
+    if attach_md and zip_path and Path(zip_path).is_file():
+        z_obj = Path(zip_path)
+        msg.add_attachment(
+            z_obj.read_bytes(),
+            maintype="application",
+            subtype="zip",
+            filename=z_obj.name
+        )
 
     security = os.getenv("SMTP_SECURITY", "starttls").lower()
     port = int(os.getenv("SMTP_PORT", "465" if security == "ssl" else "587"))
@@ -740,7 +748,7 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
         return 0
 
     results = []
-    processed_md_paths = []
+    processed_md_files = []
 
     for f in files:
         # 1. Read raw text
@@ -773,7 +781,7 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
             }
             dest = move(f, failed)
             r["destination"] = dest
-            processed_md_paths.append(dest)
+            processed_md_files.append((dest, f.name))
             results.append(r)
             continue
 
@@ -859,7 +867,7 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
         try:
             dest = move(f, verified if r["passed"] else failed)
             r["destination"] = dest
-            processed_md_paths.append(dest)
+            processed_md_files.append((dest, f.name))
         except OSError as e:
             r["passed"] = False
             r["errors"] += 1
@@ -874,7 +882,7 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
             })
             dest = f
             r["destination"] = dest
-            processed_md_paths.append(dest)
+            processed_md_files.append((dest, f.name))
 
         # If document has remaining user errors, write .report.txt beside it in failed/
         if not r["passed"]:
@@ -902,10 +910,27 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
     # Save Excel report
     excel_path = generate_excel_report(results, reports, display_time)
 
+    # If attach_md and processed_md_files, package all processed markdown files into a single zip archive
+    zip_path = None
+    if attach_md and processed_md_files:
+        zip_name = f"Markdown_Files_{stamp_file}.zip"
+        zip_path = _unique_path(reports / zip_name)
+        seen_arcnames = set()
+        with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for p, orig_name in processed_md_files:
+                p_obj = Path(p)
+                if p_obj.is_file():
+                    arcname = orig_name or p_obj.name
+                    if arcname in seen_arcnames:
+                        arcname = p_obj.name
+                    seen_arcnames.add(arcname)
+                    zf.write(p_obj, arcname=arcname)
+
     # Save HTML report
-    attached_md_names = [Path(p).name for p in processed_md_paths] if attach_md else []
+    attached_md_names = [orig_name for _, orig_name in processed_md_files] if attach_md else []
     (reports / f"report_{stamp_file}.html").write_text(
-        render_html(results, excel_path.name, display_time, attached_md_names), encoding="utf-8"
+        render_html(results, excel_path.name, display_time, attached_md_names, zip_filename=zip_path.name if zip_path else None),
+        encoding="utf-8"
     )
 
     # Dispatch email notification
@@ -915,10 +940,11 @@ def run_batch(cfg, inbox=None, verified=None, failed=None, reports=None, settle=
             attachment_path=excel_path,
             processed_at=display_time,
             attach_md=attach_md,
-            md_paths=processed_md_paths
+            zip_path=zip_path,
+            md_names=attached_md_names
         )
-        print(f"Email sent successfully with Excel report ({excel_path.name})"
-              + (f" and {len(attached_md_names)} MD files." if attach_md else " (MD files attachment disabled)."))
+        zip_desc = f" and single zip archive ({zip_path.name} with {len(attached_md_names)} MD files)." if (attach_md and zip_path) else " (MD files attachment disabled)."
+        print(f"Email sent successfully with Excel report ({excel_path.name})" + zip_desc)
     except Exception as e:
         print(f"Email failed: {e}")
 
@@ -968,7 +994,7 @@ def test_email():
     try:
         display_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         test_excel = generate_excel_report(mock_results, REPORTS, display_time)
-        send_email(mock_results, test_excel, display_time, attach_md=False)
+        send_email(mock_results, test_excel, display_time, attach_md=False, zip_path=None)
         print(f"SUCCESS: Test email with attachment ({test_excel.name}) sent successfully to: {to}")
         return 0
     except Exception as e:
